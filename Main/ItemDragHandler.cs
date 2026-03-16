@@ -1,68 +1,112 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+[RequireComponent(typeof(CanvasGroup))]
 public class ItemDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
 {
-    Transform originalParent;
-    CanvasGroup canvasGroup;
-    // Start is called before the first frame update
-    void Start()
+    private Transform originalParent;
+    private Slot originalSlot;
+    private CanvasGroup canvasGroup;
+    private RectTransform rectTransform;
+    private Canvas rootCanvas;
+
+    private void Awake()
     {
         canvasGroup = GetComponent<CanvasGroup>();
+        rectTransform = GetComponent<RectTransform>();
+        rootCanvas = GetComponentInParent<Canvas>();
     }
 
     public void OnBeginDrag(PointerEventData eventData)
     {
-        originalParent = transform.parent; //Saves OG parent
-        transform.SetParent(transform.root); //Above other canvas
+        originalParent = transform.parent;
+        originalSlot = originalParent.GetComponent<Slot>();
+
+        // Move dragged item to top-level canvas so it appears above everything
+        if (rootCanvas != null)
+        {
+            transform.SetParent(rootCanvas.transform);
+        }
+        else
+        {
+            transform.SetParent(transform.root);
+        }
+
+        transform.SetAsLastSibling();
+
         canvasGroup.blocksRaycasts = false;
-        canvasGroup.alpha = 0.6f; // Semi-transparent during drag
+        canvasGroup.alpha = 0.6f;
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        transform.position = eventData.position; // Follow the mouse
+        rectTransform.position = eventData.position;
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        canvasGroup.blocksRaycasts = true; // Enables raycasts
-        canvasGroup.alpha = 1f; // No longer transparent
+        canvasGroup.blocksRaycasts = true;
+        canvasGroup.alpha = 1f;
 
-        Slot dropSlot = eventData.pointerEnter?.GetComponent<Slot>(); // Slot where item will be dropped
-        if(dropSlot == null)
+        Slot targetSlot = GetTargetSlot(eventData);
+
+        // No valid slot found, return to original
+        if (targetSlot == null)
         {
-            GameObject dropItem = eventData.pointerEnter;
-            if(dropItem != null)
-            {
-                dropSlot.dropItem.GetComponentInParent<Slot>();
-            }
+            ReturnToOriginalSlot();
+            return;
         }
-        Slot originalSlot = originalParent.GetComponent<Slot>();
 
-        if(dropSlot != null)
+        // Dropped in the same slot, just snap back
+        if (targetSlot == originalSlot)
         {
-            // is a slot under drop point
-           if (dropSlot.currentItem != null)
-            {
-                dropSlot.currentItem.transform.SetParent(originalSlot.transform);
-                originalSlot.currentItem = dropSlot.currentItem;
-                dropSlot.currentItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
-            }
-            else
-            {
-                originalSlot.currentItem = null;
-            }
-            transform.SetParent(dropSlot.transform);
-            dropSlot.currentItem = gameObject;
+            transform.SetParent(originalParent);
+            rectTransform.anchoredPosition = Vector2.zero;
+            return;
+        }
+
+        GameObject targetItem = targetSlot.currentItem;
+
+        // If target slot already has an item, swap them
+        if (targetItem != null)
+        {
+            targetItem.transform.SetParent(originalSlot.transform);
+            targetItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+            originalSlot.currentItem = targetItem;
         }
         else
         {
-            transform.SetParent(originalParent);
+            originalSlot.currentItem = null;
         }
-        GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+
+        // Place dragged item in target slot
+        transform.SetParent(targetSlot.transform);
+        rectTransform.anchoredPosition = Vector2.zero;
+        targetSlot.currentItem = gameObject;
+    }
+
+    private Slot GetTargetSlot(PointerEventData eventData)
+    {
+        if (eventData.pointerEnter == null)
+            return null;
+
+        // Case 1: pointer is directly over a slot
+        Slot slot = eventData.pointerEnter.GetComponent<Slot>();
+        if (slot != null)
+            return slot;
+
+        // Case 2: pointer is over an item inside a slot
+        return eventData.pointerEnter.GetComponentInParent<Slot>();
+    }
+
+    private void ReturnToOriginalSlot()
+    {
+        transform.SetParent(originalParent);
+        rectTransform.anchoredPosition = Vector2.zero;
+
+        if (originalSlot != null)
+        {
+            originalSlot.currentItem = gameObject;
+        }
     }
 }
-
