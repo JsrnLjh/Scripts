@@ -10,33 +10,26 @@ public class PlayerItemCollector : MonoBehaviour
     }
 
     private void OnTriggerEnter2D(Collider2D collision)
+{
+    if (collision.CompareTag("Item"))
     {
-        if (collision.CompareTag("Item"))
+        Item item = collision.GetComponent<Item>();
+        if (item == null) return;
+
+        if (item.uiItemPrefab == null)
         {
-            Item item = collision.GetComponent<Item>();
-            if (item == null) return;
+            Debug.LogError($"PlayerItemCollector: '{item.Name}' has no uiItemPrefab assigned.");
+            return;
+        }
 
-            // Use the UI prefab for inventory, not the world prefab
-            if (item.uiItemPrefab == null)
-            {
-                Debug.LogError($"PlayerItemCollector: '{item.Name}' has no uiItemPrefab assigned.");
-                return;
-            }
+        // Pass the prefab directly — AddItem will instantiate it
+        bool itemAdded = inventoryController.AddItem(item.uiItemPrefab);
 
-            // Instantiate the correct UI prefab and add that to inventory
-            GameObject uiItem = Instantiate(item.uiItemPrefab);
-            bool itemAdded = inventoryController.AddItem(uiItem);
-
-            if (itemAdded)
-            {
-                item.Pickup();
-                Destroy(collision.gameObject);
-            }
-            else
-            {
-                // Inventory full — destroy the temporary UI item
-                Destroy(uiItem);
-            }
+        if (itemAdded)
+        {
+            item.Pickup();
+            Destroy(collision.gameObject);
         }
     }
+}
 }
