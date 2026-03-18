@@ -1,0 +1,23 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c90ec820b46f21d4bac7a89d4d2a8823, type: 3}
+  m_Name: Collect Potion
+  m_EditorClassIdentifier: 
+  questID: d057ba0d-7c08-4cde-9d0c-4824daa91c7e
+  questName: Collect 5 Health potions
+  description: 'Roam around the Area and collect 5 health potions. '
+  objectives:
+  - objectiveID: 1
+    description: Collect 5 Potion
+    type: 0
+    requiredAmount: 5
+    currentAmount: 0
