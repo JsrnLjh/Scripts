@@ -9,31 +9,44 @@ public class MenuController : MonoBehaviour
     public GameObject floatingJoystick;
     public GameObject interactButton;
     public GameObject menuButton;
-    public GameObject itemPopupContainer; 
+    public GameObject itemPopupContainer;
 
     private void Start()
     {
+        if (menuCanvas == null)
+        {
+            Debug.LogError("MenuCanvas is not assigned in MenuController.");
+            return;
+        }
+
         menuCanvas.SetActive(false);
         SetMobileControls(true);
     }
 
     public void ToggleMenu()
     {
-        bool isMenuOpening = !menuCanvas.activeSelf;
-        menuCanvas.SetActive(isMenuOpening);
-        SetMobileControls(!isMenuOpening);
+        if (menuCanvas == null) return;
+
+        if (menuCanvas.activeSelf) CloseMenu();
+        else OpenMenu();
     }
 
     public void CloseMenu()
     {
+        if (menuCanvas == null) return;
+
         menuCanvas.SetActive(false);
         SetMobileControls(true);
+        PauseController.SetPause(false);
     }
 
     public void OpenMenu()
     {
+        if (menuCanvas == null) return;
+
         menuCanvas.SetActive(true);
         SetMobileControls(false);
+        PauseController.SetPause(true);
     }
 
     private void SetMobileControls(bool state)
@@ -41,6 +54,6 @@ public class MenuController : MonoBehaviour
         if (floatingJoystick != null) floatingJoystick.SetActive(state);
         if (interactButton != null) interactButton.SetActive(state);
         if (menuButton != null) menuButton.SetActive(state);
-        if (itemPopupContainer != null) itemPopupContainer.SetActive(state); 
+        if (itemPopupContainer != null) itemPopupContainer.SetActive(state);
     }
 }

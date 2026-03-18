@@ -1,35 +1,32 @@
+using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerItemCollector : MonoBehaviour
 {
     private InventoryController inventoryController;
-
-    private void Start()
+    // Start is called before the first frame update
+    void Start()
     {
         inventoryController = FindObjectOfType<InventoryController>();
     }
 
+    // Update is called once per frame
     private void OnTriggerEnter2D(Collider2D collision)
-{
-    if (collision.CompareTag("Item"))
     {
-        Item item = collision.GetComponent<Item>();
-        if (item == null) return;
-
-        if (item.uiItemPrefab == null)
+        if (collision.CompareTag("Item"))
         {
-            Debug.LogError($"PlayerItemCollector: '{item.Name}' has no uiItemPrefab assigned.");
-            return;
-        }
-
-        // Pass the prefab directly — AddItem will instantiate it
-        bool itemAdded = inventoryController.AddItem(item.uiItemPrefab);
-
-        if (itemAdded)
-        {
-            item.Pickup();
-            Destroy(collision.gameObject);
+            Item item = collision.GetComponent<Item>();
+            if (item != null)
+            {
+                //add item to inventory
+                bool itemAdded = inventoryController.AddItem(collision.gameObject);
+                if (itemAdded)
+                {
+                    item.Pickup();
+                    Destroy(collision.gameObject);
+                }
+            }
         }
     }
-}
 }

@@ -1,175 +1,203 @@
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-[RequireComponent(typeof(CanvasGroup))]
 public class ItemDragHandler : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler, IPointerClickHandler
 {
-    [Header("Drop Settings")]
-    public float minDropDistance = 2f;
-    public float maxDropDistance = 3f;
+    Transform originalParent;
+    CanvasGroup canvasGroup;
 
-    private Transform originalParent;
-    private Slot originalSlot;
-    private CanvasGroup canvasGroup;
-    private RectTransform rectTransform;
-    private Canvas rootCanvas;
-    private bool isDragging = false; // Track if a drag occurred
+    public float minDropDistance = 1.5f;
+    public float maxDropDistance = 2f; 
+    private InventoryController inventoryController;
+    private ItemDictionary itemDictionary;
 
-    private void Awake()
+    void Start()
     {
         canvasGroup = GetComponent<CanvasGroup>();
-        rectTransform = GetComponent<RectTransform>();
-    }
-
-    public void OnPointerClick(PointerEventData eventData)
-    {
-        // Only use item if it was a clean tap, not a drag
-        if (!isDragging)
-        {
-            Item item = GetComponent<Item>();
-            if (item != null)
-                item.UseItem();
-        }
-    }
-
+        inventoryController = InventoryController.Instance;
+        itemDictionary = FindObjectOfType<ItemDictionary>();
+    }  
     public void OnBeginDrag(PointerEventData eventData)
     {
-        isDragging = true;
-        rootCanvas = GetComponentInParent<Canvas>();
-        originalParent = transform.parent;
-        originalSlot = originalParent.GetComponent<Slot>();
-
-        if (originalSlot != null)
-            originalSlot.currentItem = null;
-
-        Transform canvasTransform = rootCanvas != null ? rootCanvas.transform : transform.root;
-        transform.SetParent(canvasTransform);
-        transform.SetAsLastSibling();
-
+        originalParent = transform.parent; //save og parent
+        transform.SetParent(transform.root); //above other canvas
         canvasGroup.blocksRaycasts = false;
-        canvasGroup.alpha = 0.6f;
+        canvasGroup.alpha = 0.6f; //semi-transparent during drag
+
     }
 
     public void OnDrag(PointerEventData eventData)
     {
-        rectTransform.position = eventData.position;
+        transform.position = eventData.position; //follow the mouse
     }
 
     public void OnEndDrag(PointerEventData eventData)
     {
-        canvasGroup.blocksRaycasts = true;
-        canvasGroup.alpha = 1f;
-        isDragging = false; // Reset drag flag
+        
+        canvasGroup.blocksRaycasts = true; //enables raycasts
+        canvasGroup.alpha = 1f; //no longer transparent
 
-        Slot targetSlot = GetTargetSlot(eventData);
-
-        if (targetSlot == null)
+        Slot dropSlot = eventData.pointerEnter?.GetComponent<Slot>(); //slot where item dropped
+        if (dropSlot == null)
         {
-            if (!IsWithinInventory(eventData.position))
+            GameObject item = eventData.pointerEnter;
+            if (item != null)
             {
-                DropItem(originalSlot);
-                return;
+                dropSlot = item.GetComponentInParent<Slot>();
+            }
+        }
+        Slot originalSlot = originalParent.GetComponent<Slot>();
+
+        if (dropSlot != null)
+        {
+            if (dropSlot.currentItem != null)
+            {
+                Item draggedItem = GetComponent<Item>();
+                Item targetItem = dropSlot.currentItem.GetComponent<Item>();
+
+                if (draggedItem.ID == targetItem.ID)
+                {
+                    //same item, stack them
+                    targetItem.AddToStack(draggedItem.quantity);
+                    originalSlot.currentItem = null;
+                    Destroy(gameObject); //destroy dragged item UI
+
+                }
+                else
+                {
+                    //swap items
+                    dropSlot.currentItem.transform.SetParent(originalSlot.transform);
+                    originalSlot.currentItem = dropSlot.currentItem;
+                    dropSlot.currentItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+
+                    transform.SetParent(dropSlot.transform);
+                    dropSlot.currentItem = gameObject;
+                    GetComponent<RectTransform>().anchoredPosition = Vector2.zero; //centers item in the slot
+                }
+            }
+            else
+            {
+                originalSlot.currentItem = null;
+                transform.SetParent(dropSlot.transform);
+                dropSlot.currentItem = gameObject;
+                GetComponent<RectTransform>().anchoredPosition = Vector2.zero; //centers item in the slot
             }
 
-            ReturnToOriginalSlot();
-            return;
+            //move item into drop slot
         }
-
-        if (targetSlot == originalSlot)
+        else
         {
-            transform.SetParent(originalParent);
-            rectTransform.anchoredPosition = Vector2.zero;
-            originalSlot.currentItem = gameObject;
-            return;
+            //if dropping outide the inventory
+            if (!IsWithinInventory(eventData.position))
+            {
+                //drop item
+                DropItem(originalSlot);
+            }
+            else
+            {
+                //snapback to og slot 
+                transform.SetParent(originalParent);
+                GetComponent<RectTransform>().anchoredPosition = Vector2.zero; //centers item in the slot
+            }    
         }
+    }
 
-        GameObject targetItem = targetSlot.currentItem;
+    bool IsWithinInventory(Vector2 mousePosition)
+    {
+        RectTransform inventoryRect = originalParent.parent.GetComponent<RectTransform>();
+        return RectTransformUtility.RectangleContainsScreenPoint(inventoryRect, mousePosition);
+    }
+    
+    void DropItem(Slot originalSlot)
+    {
+        Item item = GetComponent<Item>();
+        int quantity = item.quantity;
 
-        if (targetItem != null)
+        if (quantity > 1)
         {
-            targetItem.transform.SetParent(originalParent);
-            targetItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
-            originalSlot.currentItem = targetItem;
+            item.RemoveFromStack();
+            transform.SetParent(originalSlot.transform);
+            GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+            quantity = 1;
         }
         else
         {
             originalSlot.currentItem = null;
         }
 
-        transform.SetParent(targetSlot.transform);
-        rectTransform.anchoredPosition = Vector2.zero;
-        targetSlot.currentItem = gameObject;
-    }
-
-    private bool IsWithinInventory(Vector2 mousePosition)
-    {
-        RectTransform inventoryRect = originalParent.parent.GetComponent<RectTransform>();
-        return RectTransformUtility.RectangleContainsScreenPoint(inventoryRect, mousePosition);
-    }
-
-    private void DropItem(Slot slot)
-    {
-        if (slot != null)
-            slot.currentItem = null;
-
         Transform playerTransform = GameObject.FindGameObjectWithTag("Player")?.transform;
         if (playerTransform == null)
         {
-            Debug.LogError("DropItem: Missing 'Player' tag on player object.");
-            ReturnToOriginalSlot();
-            return;
-        }
-
-        Item itemData = GetComponent<Item>();
-        if (itemData == null)
-        {
-            Debug.LogError("DropItem: No Item component found on dragged object.");
-            ReturnToOriginalSlot();
-            return;
-        }
-
-        if (itemData.itemPrefab == null)
-        {
-            Debug.LogError($"DropItem: '{itemData.Name}' has no itemPrefab assigned in the Inspector.");
-            ReturnToOriginalSlot();
+            Debug.LogError("Missing 'Player' tag");
             return;
         }
 
         Vector2 dropOffset = Random.insideUnitCircle.normalized * Random.Range(minDropDistance, maxDropDistance);
         Vector2 dropPosition = (Vector2)playerTransform.position + dropOffset;
 
-        GameObject worldItem = Instantiate(itemData.itemPrefab, dropPosition, Quaternion.identity);
-        worldItem.tag = "Item";
+        // ✅ Use ItemDictionary to get the correct world prefab
+        ItemDictionary itemDictionary = FindObjectOfType<ItemDictionary>();
+        GameObject worldPrefab = itemDictionary?.GetItemPrefab(item.ID);
 
-        Destroy(gameObject);
-    }
-
-    private Slot GetTargetSlot(PointerEventData eventData)
-    {
-        List<RaycastResult> results = new List<RaycastResult>();
-        EventSystem.current.RaycastAll(eventData, results);
-
-        foreach (RaycastResult result in results)
+        if (worldPrefab == null)
         {
-            if (result.gameObject == gameObject) continue;
-
-            Slot slot = result.gameObject.GetComponent<Slot>()
-                        ?? result.gameObject.GetComponentInParent<Slot>();
-
-            if (slot != null)
-                return slot;
+            Debug.LogError($"No world prefab found for item ID: {item.ID}");
+            return;
         }
 
-        return null;
+        GameObject dropItem = Instantiate(worldPrefab, dropPosition, Quaternion.identity);
+        Item droppedItem = dropItem.GetComponent<Item>();
+
+        if (droppedItem == null)
+        {
+            Debug.LogError("Dropped prefab is missing an Item component");
+            return;
+        }
+
+        droppedItem.quantity = 1;
+        dropItem.GetComponent<BounceEffect>()?.StartBounce();
+
+        if (quantity <= 1 && originalSlot.currentItem == null)
+        {
+            Destroy(gameObject);
+        }
     }
 
-    private void ReturnToOriginalSlot()
+    public void OnPointerClick(PointerEventData eventData)
     {
-        transform.SetParent(originalParent);
-        rectTransform.anchoredPosition = Vector2.zero;
+        if (eventData.button == PointerEventData.InputButton.Right)
+        {
+            Item item = GetComponent<Item>();
+            item.UseItem();
+        }
+    }
 
-        if (originalSlot != null)
-            originalSlot.currentItem = gameObject;
+    private void SplitStack()
+    {
+        Item item = GetComponent<Item>();
+        if (item == null || item.quantity <= 1) return;
+
+        int splitAmount = item.quantity / 2;
+        if(splitAmount <= 0 ) return;
+
+        item.RemoveFromStack(splitAmount);
+
+        GameObject newItem = item.CloneItem(splitAmount);
+
+        if(inventoryController == null || newItem == null) return;
+
+        foreach(Transform slotTransform in inventoryController.inventoryPanel.transform)
+        {
+            Slot slot = slotTransform.GetComponent<Slot>();
+            if(slot != null && slot.currentItem)
+            {
+                slot.currentItem = newItem;
+                newItem.transform.SetParent(slot.transform);
+                newItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
+            }
+        }
+
+        item.AddToStack(splitAmount);
+        Destroy(newItem); 
     }
 }

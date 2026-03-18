@@ -1,5 +1,3 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
 
 public class PlayerMovement : MonoBehaviour
@@ -18,57 +16,48 @@ public class PlayerMovement : MonoBehaviour
     {
         rb = GetComponent<Rigidbody2D>();
         animator = GetComponent<Animator>();
-        
-        // Auto-find joystick if not assigned
+
         if (joystick == null)
         {
             joystick = FindObjectOfType<FloatingJoystick>();
-            if (joystick == null)
-            {
-                Debug.LogError("FloatingJoystick not found! Please assign it in the inspector.");
-            }
         }
+
+        animator.SetFloat("LastInputX", 0f);
+        animator.SetFloat("LastInputY", -1f);
     }
 
     void Update()
     {
-        HandleMovementInput();
-        UpdateAnimation();
-    }
-
-    void HandleMovementInput()
-    {
-        // Get input from joystick
-        if (joystick != null)
-        {
-            moveInput = joystick.Direction;
-        }
-        else
+        if (PauseController.IsGamePaused)
         {
             moveInput = Vector2.zero;
         }
-        
-        // Apply movement
+        else
+        {
+            moveInput = joystick != null ? joystick.Direction : Vector2.zero;
+        }
+
+        UpdateAnimation();
+    }
+
+    void FixedUpdate()
+    {
+        // Physics calculations should always happen in FixedUpdate
         rb.velocity = moveInput * moveSpeed;
     }
 
     void UpdateAnimation()
     {
-        // Determine if player is moving
-        bool isWalking = rb.velocity.magnitude > 0.1f;
-        
-        // Update animator
+        // Check movement based on input magnitude for better accuracy in animations
+        bool isWalking = moveInput.sqrMagnitude > 0.01f;
         animator.SetBool("IsWalking", isWalking);
 
         if (isWalking)
         {
-            // Update current movement direction
             animator.SetFloat("InputX", moveInput.x);
             animator.SetFloat("InputY", moveInput.y);
-        }
-        else
-        {
-            // Update last movement direction (for idle facing)
+            
+            // Store the direction for idle states
             animator.SetFloat("LastInputX", moveInput.x);
             animator.SetFloat("LastInputY", moveInput.y);
         }
