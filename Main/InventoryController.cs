@@ -31,6 +31,15 @@ public class InventoryController : MonoBehaviour
 
     void Start()
     {
+        // Create the physical slots in the UI if they don't exist
+        if (inventoryPanel.transform.childCount == 0)
+        {
+            for (int i = 0; i < slotCount; i++)
+            {
+                Instantiate(slotPrefab, inventoryPanel.transform);
+            }
+        }
+        
         RebuildItemCounts();
     }
 
