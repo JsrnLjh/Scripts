@@ -73,7 +73,14 @@ public class NPC : MonoBehaviour, IInteractable
 
         string questID = dialogueData.quest.questID;
 
-        if(QuestController.Instance.IsQuestActive(questID))
+        bool completed = QuestController.Instance.IsQuestCompleted(questID);
+        Debug.Log($"Quest {questID} Completion Status: {completed}");
+
+        if(QuestController.Instance.IsQuestCompleted(questID) || QuestController.Instance.IsQuestHandedIn(questID))
+        {
+            questState = QuestState.Completed;
+        }
+        else if(QuestController.Instance.IsQuestActive(questID))
         {
             questState = QuestState.InProgress;
         }
@@ -126,6 +133,12 @@ public class NPC : MonoBehaviour, IInteractable
 
     public void EndDialogue()
     {
+
+        if(questState == QuestState.Completed && !QuestController.Instance.IsQuestHandedIn(dialogueData.quest.questID))
+        {
+            HandleQuestCompletion(dialogueData.quest);
+        }
+
         StopAllCoroutines();
         isDialogueActive = false;
         dialogueUI.SetDialogueText("");
@@ -184,5 +197,10 @@ public class NPC : MonoBehaviour, IInteractable
             yield return new WaitForSeconds(dialogueData.autoProgressDelay);
             NextLine();
         }
+    }
+
+    void HandleQuestCompletion(Quest quest)
+    {
+        QuestController.Instance.HandInQuest(quest.questID);
     }
 }

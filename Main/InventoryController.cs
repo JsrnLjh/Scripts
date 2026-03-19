@@ -1,5 +1,7 @@
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using UnityEngine;
 
 public class InventoryController : MonoBehaviour
@@ -11,6 +13,8 @@ public class InventoryController : MonoBehaviour
     public GameObject[] itemPrefabs;
 
     public static InventoryController Instance {get; private set;}
+    Dictionary<int, int> itemsCountCache = new();
+    public event Action OnInventoryChanged;
 
     public void Awake()
     {
@@ -25,6 +29,35 @@ public class InventoryController : MonoBehaviour
         itemDictionary = FindObjectOfType<ItemDictionary>();
     }
 
+    void Start()
+    {
+        RebuildItemCounts();
+    }
+
+    public void RebuildItemCounts()
+    {
+        itemsCountCache.Clear();
+
+        foreach(Transform slotTranform in inventoryPanel.transform)
+        {
+            Slot slot = slotTranform.GetComponent<Slot>();
+            if(slot.currentItem != null)
+            {
+                Item item = slot.currentItem.GetComponent<Item>();
+                if(item != null)
+                {
+                    itemsCountCache[item.ID] = itemsCountCache.GetValueOrDefault(item.ID, 0) + item.quantity;
+                }
+            }
+        }
+
+        OnInventoryChanged?.Invoke();
+    }
+
+    public Dictionary<int, int> GetItemCounts()
+    {
+        return itemsCountCache;
+    }
 
     public bool AddItem(GameObject itemPrefab)
     {
@@ -43,6 +76,7 @@ public class InventoryController : MonoBehaviour
                 {
                     //Same item stacks
                     slotItem.AddToStack();
+                    RebuildItemCounts();
                     return true;
                 }
             }
@@ -57,6 +91,7 @@ public class InventoryController : MonoBehaviour
                 GameObject newItem = Instantiate(itemPrefab, slotTransform);
                 newItem.GetComponent<RectTransform>().anchoredPosition = Vector2.zero;
                 slot.currentItem = newItem;
+                RebuildItemCounts();
                 return true; // Item added successfully
             }
         }
@@ -117,5 +152,31 @@ public class InventoryController : MonoBehaviour
                 }
             }
         } 
+
+        RebuildItemCounts();
+    }
+
+    public void RemoveItemsFromInventory(int itemID, int amountToRemove)
+    {
+        foreach(Transform slotTranform in inventoryPanel.transform)
+        {
+            if(amountToRemove <= 0) break;
+
+            Slot slot = slotTranform.GetComponent<Slot>();
+            if(slot?.currentItem?.GetComponent<Item>() is Item item && item.ID == itemID)
+            {
+                int removed = Mathf.Min(amountToRemove, item.quantity);
+                item.RemoveFromStack(removed);
+                amountToRemove -= removed;
+
+                if(item.quantity == 0)
+                {
+                    Destroy(slot.currentItem);
+                    slot.currentItem = null;
+                }
+            }
+        }
+
+        RebuildItemCounts();
     }
 }

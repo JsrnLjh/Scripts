@@ -17,7 +17,12 @@ MonoBehaviour:
   description: 'Roam around the Area and collect 5 health potions. '
   objectives:
   - objectiveID: 1
-    description: Collect 5 Potion
+    description: Collect 5 HP Pot
     type: 0
     requiredAmount: 5
+    currentAmount: 0
+  - objectiveID: 2
+    description: Collect 2 D-Potion
+    type: 0
+    requiredAmount: 2
     currentAmount: 0
