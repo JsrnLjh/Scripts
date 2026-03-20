@@ -11,6 +11,7 @@ public class SaveData
     public List<ChestSaveData> chestSaveData;
     public List<QuestProgress> questProgressData;
     public List<string> handInQuestIDs;
+    public List<int> earnedBadgeIDs;
 }
 
 [System.Serializable]

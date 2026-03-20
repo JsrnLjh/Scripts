@@ -1,6 +1,5 @@
 using System.Collections;
 using System.Collections.Generic;
-using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using UnityEngine;
@@ -9,89 +8,120 @@ public class SaveController : MonoBehaviour
 {
     private string saveLocation;
     private InventoryController inventoryController;
-    // private HotbarController hotbarController;
     private Chest[] chests;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        InitializedComponents();
-        LoadGame();
-    }
-
-    private void InitializedComponents()
+    void Awake()
     {
         saveLocation = Path.Combine(Application.persistentDataPath, "saveData.json");
         inventoryController = FindObjectOfType<InventoryController>();
-        // hotbarController = FindObjectOfType<HotbarController>();
         chests = FindObjectsOfType<Chest>();
+    }
+
+    // ← Move LoadGame to Start so all other Awake() singletons
+    //   (BadgeController, QuestController) are guaranteed to be ready
+    void Start()
+    {
+        LoadGame();
     }
 
     public void SaveGame()
     {
+        if (BadgeController.Instance == null)
+        {
+            Debug.LogWarning("[SaveController] BadgeController not ready — skipping save.");
+            return;
+        }
+
         SaveData saveData = new SaveData
         {
             playerPosition = GameObject.FindGameObjectWithTag("Player").transform.position,
             inventorySaveData = inventoryController.GetInventoryItems(),
-            // hotbarSaveData = hotbarController.GetHotbarItems(),
             chestSaveData = GetChestsState(),
             questProgressData = QuestController.Instance.activateQuest,
-            handInQuestIDs = QuestController.Instance.handinQuestIDs
+            handInQuestIDs = QuestController.Instance.handinQuestIDs,
+            earnedBadgeIDs = BadgeController.Instance.GetSaveData()
         };
+
         File.WriteAllText(saveLocation, JsonUtility.ToJson(saveData));
+        
+        Debug.Log("[SaveController] Game saved.");
     }
 
     private List<ChestSaveData> GetChestsState()
     {
         List<ChestSaveData> chestStates = new List<ChestSaveData>();
 
-        foreach(Chest chest in chests)
+        foreach (Chest chest in chests)
         {
-            ChestSaveData chestSaveData = new ChestSaveData
+            chestStates.Add(new ChestSaveData
             {
                 chestID = chest.ChestID,
                 isOpened = chest.IsOpened
-            };
-            chestStates.Add(chestSaveData);
+            });
         }
+
         return chestStates;
     }
 
     public void LoadGame()
     {
-        if(File.Exists(saveLocation))
+        if (!File.Exists(saveLocation))
         {
-            SaveData saveData = JsonUtility.FromJson<SaveData>(File.ReadAllText(saveLocation));
+            // First time — create fresh save
+            inventoryController.SetInventoryItems(new List<InventorySaveData>());
+            SaveGame();
+            return;
+        }
 
-            GameObject.FindGameObjectWithTag("Player").transform.position = saveData.playerPosition;
-            
-            inventoryController.SetInventoryItems(saveData.inventorySaveData);
-            // hotbarController.SetHotbarItems(saveData.hotbarSaveData);
-            
+        SaveData saveData = JsonUtility.FromJson<SaveData>(
+            File.ReadAllText(saveLocation));
+
+        // Player position
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+        if (player != null)
+            player.transform.position = saveData.playerPosition;
+
+        // Inventory
+        inventoryController.SetInventoryItems(saveData.inventorySaveData);
+
+        // Chests
+        if (saveData.chestSaveData != null)
             LoadChestStates(saveData.chestSaveData);
 
+        // Quests
+        if (QuestController.Instance != null)
+        {
             QuestController.Instance.LoadQuestProgress(saveData.questProgressData);
-            QuestController.Instance.handinQuestIDs = saveData.handInQuestIDs;
+            QuestController.Instance.handinQuestIDs = saveData.handInQuestIDs
+                ?? new List<string>();
         }
         else
         {
-            SaveGame();
-
-            inventoryController.SetInventoryItems(new List<InventorySaveData>());
-            // hotbarController.SetHotbarItems(new List<HotbarSaveData>());
+            Debug.LogWarning("[SaveController] QuestController not ready during LoadGame.");
         }
+
+        // Badges
+        if (BadgeController.Instance != null)
+        {
+            BadgeController.Instance.LoadSaveData(saveData.earnedBadgeIDs);
+        }
+        else
+        {
+            Debug.LogWarning("[SaveController] BadgeController not ready during LoadGame.");
+        }
+
+        Debug.Log("[SaveController] Game loaded.");
     }
 
     private void LoadChestStates(List<ChestSaveData> chestStates)
     {
-        foreach(Chest chest in chests)
+        foreach (Chest chest in chests)
         {
-            ChestSaveData chestSaveData = chestStates.FirstOrDefault(c => c.chestID == chest.ChestID);
+            ChestSaveData data = chestStates.FirstOrDefault(
+                c => c.chestID == chest.ChestID);
 
-            if(chestSaveData != null)
-            {
-                chest.SetOpened(chestSaveData.isOpened);
-            }
+            if (data != null)
+                chest.SetOpened(data.isOpened);
         }
     }
 }

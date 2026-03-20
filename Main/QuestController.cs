@@ -34,32 +34,42 @@ public class QuestController : MonoBehaviour
 
         CheckInventoryForQuests();
 
-        questUI.UpdateQuestUI();
+        if (questUI != null)
+        {
+            questUI.UpdateQuestUI();
+        }
     }
 
     public bool IsQuestActive(string questID) => activateQuest.Exists(q => q.QuestID == questID);
 
     public void CheckInventoryForQuests()
     {
+        if (InventoryController.Instance == null) return;
+
         Dictionary<int, int> itemCounts = InventoryController.Instance.GetItemCounts();
 
-        foreach(QuestProgress quest in activateQuest)
+        foreach (QuestProgress quest in activateQuest)
         {
-            foreach(QuestObjective questObjective in quest.objectives)
+            foreach (QuestObjective questObjective in quest.objectives)
             {
-                if(questObjective.type != ObjectiveType.CollectItem) continue;
-                if(!int.TryParse(questObjective.objectiveID, out int itemID)) continue;
+                if (questObjective.type != ObjectiveType.CollectItem) continue;
+                if (!int.TryParse(questObjective.objectiveID, out int itemID)) continue;
 
-                int newAmount = itemCounts.TryGetValue(itemID, out int count) ? Mathf.Min(count, questObjective.requiredAmount) : 0;
+                int newAmount = itemCounts.TryGetValue(itemID, out int count)
+                    ? Mathf.Min(count, questObjective.requiredAmount)
+                    : 0;
 
-                if(questObjective.currentAmount != newAmount)
+                if (questObjective.currentAmount != newAmount)
                 {
                     questObjective.currentAmount = newAmount;
                 }
             }
         }
 
-        questUI.UpdateQuestUI();
+        if (questUI != null)
+        {
+            questUI.UpdateQuestUI();
+        }
     }
 
     public bool IsQuestCompleted(string questID)
@@ -128,5 +138,35 @@ public class QuestController : MonoBehaviour
 
         CheckInventoryForQuests();
         questUI.UpdateQuestUI();
+    }
+
+    public void UpdateObjective(string objectiveID, ObjectiveType type, int amount = 1)
+    {
+        bool updated = false;
+
+        foreach (QuestProgress quest in activateQuest)
+        {
+            foreach (QuestObjective objective in quest.objectives)
+            {
+                if (objective.type != type) continue;
+                if (!string.Equals(objective.objectiveID, objectiveID, System.StringComparison.OrdinalIgnoreCase)) continue;
+                if (objective.IsCompleted) continue;
+
+                objective.currentAmount += amount;
+
+                if (objective.currentAmount > objective.requiredAmount)
+                {
+                    objective.currentAmount = objective.requiredAmount;
+                }
+
+                updated = true;
+                Debug.Log($"Objective updated: {objectiveID} ({objective.currentAmount}/{objective.requiredAmount})");
+            }
+        }
+
+        if (updated && questUI != null)
+        {
+            questUI.UpdateQuestUI();
+        }
     }
 }
