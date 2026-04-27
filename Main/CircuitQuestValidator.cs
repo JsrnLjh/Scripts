@@ -183,8 +183,11 @@ public class CircuitQuestValidator : MonoBehaviour
     {
         if (!HasClosedLoop()) return false;
 
-        foreach (LED led in FindObjectsOfType<LED>())
+        LED[] leds = FindObjectsOfType<LED>();
+
+        foreach (LED led in leds)
         {
+            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
             if (led.isLit) return true;
         }
 
@@ -204,8 +207,10 @@ public class CircuitQuestValidator : MonoBehaviour
             return false;
         }
 
-        foreach (LED led in FindObjectsOfType<LED>())
+        LED[] leds = FindObjectsOfType<LED>();
+        foreach (LED led in leds)
         {
+            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
             if (led.isLit) return true;
         }
 
@@ -231,8 +236,10 @@ public class CircuitQuestValidator : MonoBehaviour
             return false;
         }
 
-        foreach (LED led in FindObjectsOfType<LED>())
+        LED[] leds = FindObjectsOfType<LED>();
+        foreach (LED led in leds)
         {
+            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
             if (led.isLit && !led.isBroken) return true;
         }
 
@@ -262,6 +269,7 @@ public class CircuitQuestValidator : MonoBehaviour
         int litCount = 0;
         foreach (LED led in leds)
         {
+            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken} isPassed={led.isPassed}");
             if (led.isLit && led.isPassed) litCount++;
         }
 
@@ -310,6 +318,7 @@ public class CircuitQuestValidator : MonoBehaviour
         int litCount = 0;
         foreach (LED led in leds)
         {
+            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
             if (led.isLit && !led.isBroken) litCount++;
         }
 

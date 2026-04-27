@@ -7,8 +7,8 @@ public class LED : CircuitComponent
     public GameObject cathode;
 
     [Header("LED Settings")]
-    public float forwardVoltage = 2.0f;   // minimum voltage drop to light up
-    public float maxVoltage = 5f;         // above this, LED burns out
+    public float forwardVoltage = 2f;
+    public float maxVoltage = 12f;
 
     public Sprite litSprite;
     public Sprite unlitSprite;
@@ -23,34 +23,45 @@ public class LED : CircuitComponent
     {
         sr = GetComponentInChildren<SpriteRenderer>();
         type = ComponentType.Consumer;
-        resistance = 50f; // LEDs have internal resistance; adjust as needed
+        resistance = 50f;
 
-        if ((terminals == null || terminals.Length == 0) && anode != null && cathode != null)
+        if ((terminals == null || terminals.Length == 0)
+            && anode != null && cathode != null)
             terminals = new Transform[] { anode.transform, cathode.transform };
     }
 
-    // voltage here is the DROP across this LED (current * resistance), not battery voltage
     public override void Evaluate(float voltageDrop, float current)
     {
         if (isBroken) return;
 
-        Debug.Log($"[LED] {name} — voltageDrop={voltageDrop:F2}V, current={current:F4}A");
+        Debug.Log($"[LED] {name} — voltageDrop={voltageDrop:F2}V current={current:F4}A");
 
-        if (voltageDrop > maxVoltage)
+        // Use current-based detection — more reliable than voltage drop
+        // since voltage drop depends on the resistance ratio in the circuit
+        float minCurrent = forwardVoltage / Mathf.Max(resistance, 1f);
+
+        // Burnout check — use battery voltage not voltage drop
+        Battery battery = FindObjectOfType<Battery>();
+        float batteryVoltage = battery != null ? battery.voltageOutput : 9f;
+
+        if (batteryVoltage > maxVoltage)
         {
             isBroken = true;
             isLit = false;
-            if (sr != null && brokenSprite != null) sr.sprite = brokenSprite;
-            Debug.LogWarning($"[LED] {name} burned out! ({voltageDrop:F2}V > {maxVoltage}V)");
+            if (sr != null && brokenSprite != null)
+                sr.sprite = brokenSprite;
+            Debug.LogWarning($"[LED] {name} burned out!");
             return;
         }
 
-        isLit = voltageDrop >= forwardVoltage;
+        // Light up if current is sufficient
+        isLit = current >= minCurrent;
 
         if (sr != null)
             sr.sprite = isLit ? litSprite : unlitSprite;
 
-        Debug.Log($"[LED] {name} isLit = {isLit}");
+        Debug.Log($"[LED] {name} — minCurrent={minCurrent:F4}A " +
+                  $"actual={current:F4}A isLit={isLit}");
     }
 
     public override void ResetState()

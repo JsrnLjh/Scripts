@@ -19,10 +19,15 @@ public class SimulatorReturnButton : MonoBehaviour
     {
         Debug.Log("[SimulatorReturnButton] Return clicked.");
 
+        // Auto-create SceneTransitionManager if it doesn't exist
+        // This handles the case where CircuitSimulator is loaded directly
         if (SceneTransitionManager.Instance == null)
         {
-            Debug.LogError("[SimulatorReturnButton] SceneTransitionManager not found!");
-            return;
+            Debug.LogWarning("[SimulatorReturnButton] SceneTransitionManager not found " +
+                             "— creating one automatically.");
+
+            GameObject stm = new GameObject("SceneTransitionManager");
+            stm.AddComponent<SceneTransitionManager>();
         }
 
         SceneTransitionManager.Instance.ReturnToMain();
