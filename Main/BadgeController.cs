@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -5,7 +6,15 @@ public class BadgeController : MonoBehaviour
 {
     public static BadgeController Instance { get; private set; }
 
+    // =========================================================
+    // BADGE STORAGE
+    // =========================================================
+
     private HashSet<int> earnedBadges = new HashSet<int>();
+
+    // =========================================================
+    // BADGE IDS
+    // =========================================================
 
     public const int BADGE_Q1 = 101;
     public const int BADGE_Q2 = 102;
@@ -14,7 +23,11 @@ public class BadgeController : MonoBehaviour
     public const int BADGE_Q5 = 105;
     public const int BADGE_Q6 = 106;
 
-    [Header("Badge Sprites (assign in Inspector)")]
+    // =========================================================
+    // BADGE SPRITES
+    // =========================================================
+
+    [Header("Badge Sprites")]
     public Sprite badgeQ1Sprite;
     public Sprite badgeQ2Sprite;
     public Sprite badgeQ3Sprite;
@@ -22,31 +35,100 @@ public class BadgeController : MonoBehaviour
     public Sprite badgeQ5Sprite;
     public Sprite badgeQ6Sprite;
 
+    // =========================================================
+    // BADGE INVENTORY PREFABS
+    // These prefabs MUST contain:
+    // - Item.cs
+    // - Image
+    // - UI item setup
+    // =========================================================
+
+    [Header("Badge Inventory Prefabs")]
+    public GameObject badgeQ1Prefab;
+    public GameObject badgeQ2Prefab;
+    public GameObject badgeQ3Prefab;
+    public GameObject badgeQ4Prefab;
+    public GameObject badgeQ5Prefab;
+    public GameObject badgeQ6Prefab;
+
+    // =========================================================
+    // UNITY METHODS
+    // =========================================================
+
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+        {
+            Instance = this;
+            DontDestroyOnLoad(gameObject);
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
-    // ─── Core API ─────────────────────────────────────────────────────
+    // =========================================================
+    // CORE API
+    // =========================================================
 
     public void GiveBadge(int badgeID)
     {
+        // Prevent duplicate badges
         if (earnedBadges.Contains(badgeID))
         {
             Debug.Log($"[BadgeController] Badge {badgeID} already earned.");
             return;
         }
 
+        // Add badge to earned list
         earnedBadges.Add(badgeID);
+
         Debug.Log($"[BadgeController] Badge {badgeID} earned!");
+
+        // =====================================================
+        // ADD BADGE TO INVENTORY
+        // =====================================================
+
+        GameObject badgePrefab = GetBadgePrefab(badgeID);
+
+        if (badgePrefab != null)
+        {
+            if (InventoryController.Instance != null)
+            {
+                bool added = InventoryController.Instance.AddItem(badgePrefab);
+
+                if (!added)
+                {
+                    Debug.LogWarning("[BadgeController] Inventory full. Badge could not be added.");
+                }
+            }
+            else
+            {
+                Debug.LogWarning("[BadgeController] InventoryController not found.");
+            }
+        }
+        else
+        {
+            Debug.LogWarning($"[BadgeController] No badge prefab assigned for badge ID {badgeID}");
+        }
+
+        // =====================================================
+        // SHOW BADGE POPUP
+        // =====================================================
 
         ShowBadgePopup(badgeID);
 
-        // Auto-save whenever a badge is earned
+        // =====================================================
+        // AUTO SAVE
+        // =====================================================
+
         SaveController saveController = FindObjectOfType<SaveController>();
+
         if (saveController != null)
+        {
             saveController.SaveGame();
+        }
     }
 
     public bool HasBadge(int badgeID)
@@ -61,7 +143,9 @@ public class BadgeController : MonoBehaviour
 
     public int BadgeCount => earnedBadges.Count;
 
-    // ─── Badge Gate Helpers ───────────────────────────────────────────
+    // =========================================================
+    // BADGE GATE HELPERS
+    // =========================================================
 
     public bool CanAccessQ2() => HasBadge(BADGE_Q1);
     public bool CanAccessQ3() => HasBadge(BADGE_Q2);
@@ -69,7 +153,9 @@ public class BadgeController : MonoBehaviour
     public bool CanAccessQ5() => HasBadge(BADGE_Q4);
     public bool CanAccessQ6() => HasBadge(BADGE_Q5);
 
-    // ─── Badge Popup ──────────────────────────────────────────────────
+    // =========================================================
+    // BADGE POPUP
+    // =========================================================
 
     private void ShowBadgePopup(int badgeID)
     {
@@ -80,17 +166,22 @@ public class BadgeController : MonoBehaviour
         }
 
         Sprite sprite = GetBadgeSprite(badgeID);
+
         if (sprite == null)
         {
-            Debug.LogWarning($"[BadgeController] No sprite assigned for badge {badgeID}.");
+            Debug.LogWarning($"[BadgeController] No sprite assigned for badge {badgeID}");
             return;
         }
 
-        // Empty string = no name text shown, icon only — matches your design decision
+        // Empty string = icon only popup
         ItemPickupUIController.Instance.ShowItemPickup("", sprite);
     }
 
-    private Sprite GetBadgeSprite(int badgeID)
+    // =========================================================
+    // BADGE SPRITE GETTER
+    // =========================================================
+
+    public Sprite GetBadgeSprite(int badgeID)
     {
         return badgeID switch
         {
@@ -104,7 +195,27 @@ public class BadgeController : MonoBehaviour
         };
     }
 
-    // ─── Save / Load ──────────────────────────────────────────────────
+    // =========================================================
+    // BADGE PREFAB GETTER
+    // =========================================================
+
+    private GameObject GetBadgePrefab(int badgeID)
+    {
+        return badgeID switch
+        {
+            BADGE_Q1 => badgeQ1Prefab,
+            BADGE_Q2 => badgeQ2Prefab,
+            BADGE_Q3 => badgeQ3Prefab,
+            BADGE_Q4 => badgeQ4Prefab,
+            BADGE_Q5 => badgeQ5Prefab,
+            BADGE_Q6 => badgeQ6Prefab,
+            _ => null
+        };
+    }
+
+    // =========================================================
+    // SAVE / LOAD
+    // =========================================================
 
     public List<int> GetSaveData()
     {
@@ -115,21 +226,25 @@ public class BadgeController : MonoBehaviour
     {
         if (savedBadges == null)
         {
-            Debug.Log("[BadgeController] No badge save data — starting fresh.");
+            Debug.Log("[BadgeController] No badge save data found.");
             return;
         }
 
         earnedBadges.Clear();
 
         foreach (int id in savedBadges)
+        {
             earnedBadges.Add(id);
+        }
 
-        Debug.Log($"[BadgeController] Loaded {earnedBadges.Count} badge(s): [{string.Join(", ", savedBadges)}]");
+        Debug.Log($"[BadgeController] Loaded {earnedBadges.Count} badge(s).");
     }
 
-    // ─── Debug Helpers ────────────────────────────────────────────────
+    // =========================================================
+    // DEBUG HELPERS
+    // =========================================================
 
-    [ContextMenu("Debug: Give All Badges")]
+    [ContextMenu("Debug Give All Badges")]
     private void Debug_GiveAllBadges()
     {
         GiveBadge(BADGE_Q1);
@@ -140,16 +255,17 @@ public class BadgeController : MonoBehaviour
         GiveBadge(BADGE_Q6);
     }
 
-    [ContextMenu("Debug: Clear All Badges")]
-    private void Debug_ClearAllBadges()
+    [ContextMenu("Debug Clear Badges")]
+    private void Debug_ClearBadges()
     {
         earnedBadges.Clear();
+
         Debug.Log("[BadgeController] All badges cleared.");
     }
 
-    [ContextMenu("Debug: Print Earned Badges")]
+    [ContextMenu("Debug Print Badges")]
     private void Debug_PrintBadges()
     {
-        Debug.Log($"[BadgeController] Earned: [{string.Join(", ", earnedBadges)}]");
+        Debug.Log($"Earned Badges: [{string.Join(", ", earnedBadges)}]");
     }
 }

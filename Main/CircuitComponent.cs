@@ -1,36 +1,24 @@
-using System.Collections;
-using System.Collections.Generic;
 using UnityEngine;
-
-public enum ComponentType { PowerSource, Consumer, Conductor, Control}
 
 public class CircuitComponent : MonoBehaviour
 {
-    public ComponentType type;
-    public float resistance;
-    public float voltageDrop;
-    public bool isPassed;
+    public bool isPowered;
 
     [Header("Connection Points")]
-    public Transform[] terminals;
+    public Terminal[] terminals;
 
-    public virtual bool CanPassCurrent()
+    public virtual void SetPower(bool powered)
+    {
+        isPowered = powered;
+    }
+
+    public virtual bool CanPassPower()
     {
         return true;
     }
 
-    public virtual float GetResistance()
+    public virtual bool CanPassCurrent()
     {
-        return resistance;
-    }
-
-    public virtual void Evaluate(float voltage, float current)
-    {
-        // Override in child classes
-    }
-
-    public virtual void ResetState()
-    {
-        isPassed = false;
+        return CanPassPower();
     }
 }

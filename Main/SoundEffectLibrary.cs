@@ -19,7 +19,7 @@ public class SoundEffectLibrary : MonoBehaviour
     
         if (soundEffectGroups == null || soundEffectGroups.Length == 0)
         {
-        Debug.LogError("soundEffectGroups is null or empty!");
+        // Debug.LogError("soundEffectGroups is null or empty!");
         return;
         }
     
@@ -27,7 +27,7 @@ public class SoundEffectLibrary : MonoBehaviour
         {
             if (string.IsNullOrEmpty(soundEffectGroup.name) || soundEffectGroup.audioClips == null)
             {
-            Debug.LogError("Found invalid soundEffectGroup!");
+            // Debug.LogError("Found invalid soundEffectGroup!");
             continue;
             }
         soundDictionary[soundEffectGroup.name] = soundEffectGroup.audioClips;

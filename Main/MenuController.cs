@@ -15,7 +15,7 @@ public class MenuController : MonoBehaviour
     {
         if (menuCanvas == null)
         {
-            Debug.LogError("MenuCanvas is not assigned in MenuController.");
+            // Debug.LogError("MenuCanvas is not assigned in MenuController.");
             return;
         }
 

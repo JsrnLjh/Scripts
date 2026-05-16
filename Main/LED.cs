@@ -2,83 +2,60 @@ using UnityEngine;
 
 public class LED : CircuitComponent
 {
-    [Header("Terminals")]
-    public GameObject anode;
-    public GameObject cathode;
-
-    [Header("LED Settings")]
-    public float forwardVoltage = 2f;
-    public float maxVoltage = 12f;
-
+    public GameObject lightEffect;
     public Sprite litSprite;
     public Sprite unlitSprite;
-    public Sprite brokenSprite;
 
-    [HideInInspector] public bool isLit;
-    [HideInInspector] public bool isBroken;
-
-    private SpriteRenderer sr;
+    private SpriteRenderer spriteRenderer;
 
     private void Awake()
     {
-        sr = GetComponentInChildren<SpriteRenderer>();
-        type = ComponentType.Consumer;
-        resistance = 50f;
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
-        if ((terminals == null || terminals.Length == 0)
-            && anode != null && cathode != null)
-            terminals = new Transform[] { anode.transform, cathode.transform };
+        if (spriteRenderer != null && unlitSprite == null)
+            unlitSprite = spriteRenderer.sprite;
+
+        UpdateVisuals();
     }
 
-    public override void Evaluate(float voltageDrop, float current)
+    public override void SetPower(bool powered)
     {
-        if (isBroken) return;
+        base.SetPower(powered);
+        UpdateVisuals();
+    }
 
-        Debug.Log($"[LED] {name} — voltageDrop={voltageDrop:F2}V current={current:F4}A");
+    private void Update()
+    {
+        UpdateVisuals();
+    }
 
-        // Use current-based detection — more reliable than voltage drop
-        // since voltage drop depends on the resistance ratio in the circuit
-        float minCurrent = forwardVoltage / Mathf.Max(resistance, 1f);
+    private void UpdateVisuals()
+    {
+        if (lightEffect != null)
+            lightEffect.SetActive(isPowered);
 
-        // Burnout check — use battery voltage not voltage drop
-        Battery battery = FindObjectOfType<Battery>();
-        float batteryVoltage = battery != null ? battery.voltageOutput : 9f;
-
-        if (batteryVoltage > maxVoltage)
-        {
-            isBroken = true;
-            isLit = false;
-            if (sr != null && brokenSprite != null)
-                sr.sprite = brokenSprite;
-            Debug.LogWarning($"[LED] {name} burned out!");
+        if (spriteRenderer == null)
             return;
+
+        if (isPowered && litSprite != null)
+        {
+            spriteRenderer.sprite = litSprite;
         }
-
-        // Light up if current is sufficient
-        isLit = current >= minCurrent;
-
-        if (sr != null)
-            sr.sprite = isLit ? litSprite : unlitSprite;
-
-        Debug.Log($"[LED] {name} — minCurrent={minCurrent:F4}A " +
-                  $"actual={current:F4}A isLit={isLit}");
+        else if (!isPowered && unlitSprite != null)
+        {
+            spriteRenderer.sprite = unlitSprite;
+        }
     }
 
-    public override void ResetState()
+#if UNITY_EDITOR
+    private void OnValidate()
     {
-        base.ResetState();
-        isLit = false;
+        spriteRenderer = GetComponentInChildren<SpriteRenderer>();
 
-        if (!isBroken && sr != null && unlitSprite != null)
-            sr.sprite = unlitSprite;
+        if (spriteRenderer != null && unlitSprite == null)
+            unlitSprite = spriteRenderer.sprite;
+
+        UpdateVisuals();
     }
-
-    public void FullReset()
-    {
-        isBroken = false;
-        isLit = false;
-
-        if (sr != null && unlitSprite != null)
-            sr.sprite = unlitSprite;
-    }
+#endif
 }

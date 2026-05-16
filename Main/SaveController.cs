@@ -28,7 +28,7 @@ public class SaveController : MonoBehaviour
     {
         if (BadgeController.Instance == null)
         {
-            Debug.LogWarning("[SaveController] BadgeController not ready — skipping save.");
+            // Debug.LogWarning("[SaveController] BadgeController not ready — skipping save.");
             return;
         }
 
@@ -44,7 +44,7 @@ public class SaveController : MonoBehaviour
 
         File.WriteAllText(saveLocation, JsonUtility.ToJson(saveData));
         
-        Debug.Log("[SaveController] Game saved.");
+        // Debug.Log("[SaveController] Game saved.");
     }
 
     private List<ChestSaveData> GetChestsState()
@@ -110,7 +110,7 @@ public class SaveController : MonoBehaviour
             Debug.LogWarning("[SaveController] BadgeController not ready during LoadGame.");
         }
 
-        Debug.Log("[SaveController] Game loaded.");
+        // Debug.Log("[SaveController] Game loaded.");
     }
 
     private void LoadChestStates(List<ChestSaveData> chestStates)

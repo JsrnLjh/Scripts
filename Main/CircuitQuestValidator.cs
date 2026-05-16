@@ -1,71 +1,59 @@
-using System.Collections.Generic;
 using UnityEngine;
 
 public enum CircuitQuestType
 {
     None,
-    SimpleLoop,         // Q1: Battery → Wire → LED → Wire → Battery
-    SwitchLoop,         // Q2: Battery → Wire → Switch → Wire → LED → Wire → Battery
-    ResistorLoop,       // Q3: Battery → Switch → Resistor → LED → Battery
-    SeriesCircuit,      // Q4: Battery → Resistor → LED → LED → Battery
-    ParallelCircuit,    // Q5: Two LEDs on separate branches
-    MasterCircuit       // Q6: Battery → Switch → Resistor → LED + LED → Battery
+    SimpleLoop,
+    SwitchLoop,
+    ResistorLoop,
+    SeriesCircuit,
+    ParallelCircuit,
+    MasterCircuit
 }
 
 public class CircuitQuestValidator : MonoBehaviour
 {
     public static CircuitQuestValidator Instance { get; private set; }
 
-    [Header("Circuit Type (auto-detected at runtime)")]
+    [Header("Circuit Type")]
     public CircuitQuestType requiredCircuitType = CircuitQuestType.None;
 
-    [Header("Hint Text (auto-set from quest type)")]
+    [Header("Hint Text")]
     [TextArea] public string hintText;
 
-    private bool isCircuitValid = false;
+    private bool isCircuitValid;
     public bool IsCircuitValid => isCircuitValid;
 
     private void Awake()
     {
-        if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        if (Instance == null)
+        {
+            Instance = this;
+        }
+        else
+        {
+            Destroy(gameObject);
+        }
     }
 
     private void Start()
     {
-        // Auto-detect which quest is active
         if (QuestController.Instance != null)
-        {
             requiredCircuitType = DetectQuestType();
-        }
-        else
-        {
-            Debug.LogWarning("[CircuitQuestValidator] QuestController not found. " +
-                             "Make sure it persists between scenes via DontDestroyOnLoad.");
-        }
 
-        // Auto-set hint text
+        if (requiredCircuitType == CircuitQuestType.None)
+            requiredCircuitType = CircuitQuestType.SimpleLoop;
+
         if (string.IsNullOrEmpty(hintText))
             hintText = GetDefaultHint(requiredCircuitType);
 
-        Debug.Log($"[CircuitQuestValidator] Detected quest type: {requiredCircuitType}");
-        Debug.Log($"[CircuitQuestValidator] Hint: {hintText}");
-
-        // Push hint to UI
-        if (SimulatorHintUI.Instance != null)
-        {
-            SimulatorHintUI.Instance.UpdateHint(hintText);
-            SimulatorHintUI.Instance.UpdateStatus(false);
-        }
+        GetSimulatorHintUI()?.UpdateHint(hintText);
+        CircuitManager.Instance?.EvaluateCircuit();
     }
-
-    // ─── Auto-Detect Quest Type ───────────────────────────────────────
-    // Reads active objectives from QuestController to determine
-    // which circuit the player needs to build right now.
 
     private CircuitQuestType DetectQuestType()
     {
-        string[] objectiveIDs = new[]
+        string[] objectiveIDs =
         {
             "LightLED",
             "SwitchLED",
@@ -75,7 +63,7 @@ public class CircuitQuestValidator : MonoBehaviour
             "MasterLED"
         };
 
-        CircuitQuestType[] types = new[]
+        CircuitQuestType[] types =
         {
             CircuitQuestType.SimpleLoop,
             CircuitQuestType.SwitchLoop,
@@ -85,314 +73,274 @@ public class CircuitQuestValidator : MonoBehaviour
             CircuitQuestType.MasterCircuit
         };
 
-        for (int i = 0; i < objectiveIDs.Length; i++)
+        foreach (QuestProgress quest in QuestController.Instance.activateQuest)
         {
-            foreach (QuestProgress quest in QuestController.Instance.activateQuest)
+            foreach (QuestObjective objective in quest.objectives)
             {
-                foreach (QuestObjective obj in quest.objectives)
+                for (int i = 0; i < objectiveIDs.Length; i++)
                 {
-                    if (string.Equals(obj.objectiveID, objectiveIDs[i],
-                        System.StringComparison.OrdinalIgnoreCase) && !obj.IsCompleted)
+                    if (objective.IsCompleted)
+                        continue;
+
+                    if (string.Equals(
+                        objective.objectiveID,
+                        objectiveIDs[i],
+                        System.StringComparison.OrdinalIgnoreCase))
                     {
-                        Debug.Log($"[CircuitQuestValidator] Active objective: {objectiveIDs[i]} " +
-                                  $"→ {types[i]}");
                         return types[i];
                     }
                 }
             }
         }
 
-        Debug.LogWarning("[CircuitQuestValidator] No matching active quest found. " +
-                         "Defaulting to None.");
         return CircuitQuestType.None;
     }
 
-    // ─── Main Validation Entry Point ──────────────────────────────────
-    // Called by CircuitManager.EvaluateCircuit() every time
-    // the circuit changes.
-
     public void Validate()
     {
-        isCircuitValid = false;
-
-        switch (requiredCircuitType)
+        isCircuitValid = requiredCircuitType switch
         {
-            case CircuitQuestType.SimpleLoop:
-                isCircuitValid = ValidateSimpleLoop();
-                break;
-            case CircuitQuestType.SwitchLoop:
-                isCircuitValid = ValidateSwitchLoop();
-                break;
-            case CircuitQuestType.ResistorLoop:
-                isCircuitValid = ValidateResistorLoop();
-                break;
-            case CircuitQuestType.SeriesCircuit:
-                isCircuitValid = ValidateSeriesCircuit();
-                break;
-            case CircuitQuestType.ParallelCircuit:
-                isCircuitValid = ValidateParallelCircuit();
-                break;
-            case CircuitQuestType.MasterCircuit:
-                isCircuitValid = ValidateMasterCircuit();
-                break;
-            case CircuitQuestType.None:
-            default:
-                isCircuitValid = false;
-                break;
-        }
+            CircuitQuestType.SimpleLoop => ValidateSimpleLoop(),
+            CircuitQuestType.SwitchLoop => ValidateSwitchLoop(),
+            CircuitQuestType.ResistorLoop => ValidateResistorLoop(),
+            CircuitQuestType.SeriesCircuit => ValidateSeriesCircuit(),
+            CircuitQuestType.ParallelCircuit => ValidateParallelCircuit(),
+            CircuitQuestType.MasterCircuit => ValidateMasterCircuit(),
+            CircuitQuestType.None => ValidateSimpleLoop(),
+            _ => ValidateSimpleLoop()
+        };
 
-        Debug.Log($"[CircuitQuestValidator] Validation result " +
-                  $"({requiredCircuitType}): {isCircuitValid}");
+        Debug.Log($"[CircuitQuestValidator] {requiredCircuitType} valid = {isCircuitValid}");
 
-        // Update UI status text
-        if (SimulatorHintUI.Instance != null)
-            SimulatorHintUI.Instance.UpdateStatus(isCircuitValid);
+        GetSimulatorHintUI()?.UpdateStatus(isCircuitValid);
 
-        // Update quest objective if valid
         if (isCircuitValid)
             UpdateQuestObjective();
     }
 
-    // ─── Objective Update ─────────────────────────────────────────────
-    // Pushes progress to QuestController when circuit is valid.
-
-    private void UpdateQuestObjective()
-    {
-        if (QuestController.Instance == null) return;
-
-        string objectiveID = requiredCircuitType switch
-        {
-            CircuitQuestType.SimpleLoop      => "LightLED",
-            CircuitQuestType.SwitchLoop      => "SwitchLED",
-            CircuitQuestType.ResistorLoop    => "ResistorLED",
-            CircuitQuestType.SeriesCircuit   => "SeriesLED",
-            CircuitQuestType.ParallelCircuit => "ParallelLED",
-            CircuitQuestType.MasterCircuit   => "MasterLED",
-            _ => null
-        };
-
-        if (objectiveID == null) return;
-
-        QuestController.Instance.UpdateObjective(objectiveID, ObjectiveType.Custom);
-        Debug.Log($"[CircuitQuestValidator] Objective updated: {objectiveID}");
-    }
-
-    // ─── Q1: Simple Loop ──────────────────────────────────────────────
-
     private bool ValidateSimpleLoop()
     {
-        if (!HasClosedLoop()) return false;
-
-        LED[] leds = FindObjectsOfType<LED>();
-
-        foreach (LED led in leds)
-        {
-            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
-            if (led.isLit) return true;
-        }
-
-        Debug.Log("[Validator] Q1 failed: No LED is lit.");
-        return false;
+        return HasBattery() && HasPoweredLED();
     }
-
-    // ─── Q2: Switch Loop ──────────────────────────────────────────────
 
     private bool ValidateSwitchLoop()
     {
-        if (!HasClosedLoop()) return false;
-
-        if (FindObjectsOfType<Switch>().Length == 0)
-        {
-            Debug.Log("[Validator] Q2 failed: No switch in scene.");
-            return false;
-        }
-
-        LED[] leds = FindObjectsOfType<LED>();
-        foreach (LED led in leds)
-        {
-            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
-            if (led.isLit) return true;
-        }
-
-        Debug.Log("[Validator] Q2 failed: LED not lit.");
-        return false;
+        return HasBattery()
+            && HasComponent<Switch>()
+            && HasPoweredLED();
     }
-
-    // ─── Q3: Resistor Loop ────────────────────────────────────────────
 
     private bool ValidateResistorLoop()
     {
-        if (!HasClosedLoop()) return false;
-
-        if (FindObjectsOfType<Switch>().Length == 0)
-        {
-            Debug.Log("[Validator] Q3 failed: No switch in scene.");
-            return false;
-        }
-
-        if (FindObjectsOfType<Resistor>().Length == 0)
-        {
-            Debug.Log("[Validator] Q3 failed: No resistor in scene.");
-            return false;
-        }
-
-        LED[] leds = FindObjectsOfType<LED>();
-        foreach (LED led in leds)
-        {
-            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
-            if (led.isLit && !led.isBroken) return true;
-        }
-
-        Debug.Log("[Validator] Q3 failed: LED not lit or is broken.");
-        return false;
+        return HasBattery()
+            && HasComponent<Switch>()
+            && HasComponent<Resistor>()
+            && HasPoweredLED();
     }
-
-    // ─── Q4: Series Circuit ───────────────────────────────────────────
 
     private bool ValidateSeriesCircuit()
     {
-        if (!HasClosedLoop()) return false;
-
-        if (FindObjectsOfType<Resistor>().Length == 0)
-        {
-            Debug.Log("[Validator] Q4 failed: No resistor in scene.");
-            return false;
-        }
-
-        LED[] leds = FindObjectsOfType<LED>();
-        if (leds.Length < 2)
-        {
-            Debug.Log("[Validator] Q4 failed: Need at least 2 LEDs.");
-            return false;
-        }
-
-        int litCount = 0;
-        foreach (LED led in leds)
-        {
-            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken} isPassed={led.isPassed}");
-            if (led.isLit && led.isPassed) litCount++;
-        }
-
-        if (litCount < 2)
-        {
-            Debug.Log($"[Validator] Q4 failed: Only {litCount}/2 LEDs lit in series.");
-            return false;
-        }
-
-        return true;
+        return HasBattery()
+            && HasComponent<Resistor>()
+            && CountPoweredLEDs() >= 2;
     }
-
-    // ─── Q5: Parallel Circuit ─────────────────────────────────────────
 
     private bool ValidateParallelCircuit()
     {
         ParallelCircuitChecker checker = FindObjectOfType<ParallelCircuitChecker>();
-        if (checker == null)
-        {
-            Debug.LogWarning("[Validator] Q5: ParallelCircuitChecker not found in scene.");
-            return false;
-        }
+        if (checker != null)
+            return checker.IsParallelCircuitValid();
 
-        return checker.IsParallelCircuitValid();
+        return HasBattery() && CountPoweredLEDs() >= 2;
     }
-
-    // ─── Q6: Master Circuit ───────────────────────────────────────────
 
     private bool ValidateMasterCircuit()
     {
-        if (!HasClosedLoop()) return false;
-
-        if (FindObjectsOfType<Switch>().Length == 0)
-        {
-            Debug.Log("[Validator] Q6 failed: No switch.");
-            return false;
-        }
-
-        if (FindObjectsOfType<Resistor>().Length == 0)
-        {
-            Debug.Log("[Validator] Q6 failed: No resistor.");
-            return false;
-        }
-
-        LED[] leds = FindObjectsOfType<LED>();
-        int litCount = 0;
-        foreach (LED led in leds)
-        {
-            Debug.Log($"[Validator] LED {led.name} — isLit={led.isLit} isBroken={led.isBroken}");
-            if (led.isLit && !led.isBroken) litCount++;
-        }
-
-        if (litCount < 2)
-        {
-            Debug.Log($"[Validator] Q6 failed: Only {litCount}/2 LEDs lit.");
-            return false;
-        }
-
-        return true;
+        return HasBattery()
+            && HasComponent<Switch>()
+            && HasComponent<Resistor>()
+            && CountPoweredLEDs() >= 2;
     }
 
-    // ─── Shared Helper ────────────────────────────────────────────────
-
-    private bool HasClosedLoop()
+    private bool HasBattery()
     {
-        if (FindObjectOfType<Battery>() == null)
+        return FindObjectOfType<Battery>() != null;
+    }
+
+    private bool HasComponent<T>() where T : Component
+    {
+        return FindObjectOfType<T>() != null;
+    }
+
+    private bool HasPoweredLED()
+    {
+        foreach (LED led in FindObjectsOfType<LED>())
         {
-            Debug.Log("[Validator] No battery in scene.");
-            return false;
+            if (led != null && led.isPowered)
+                return true;
         }
 
-        foreach (CircuitComponent comp in FindObjectsOfType<CircuitComponent>())
-        {
-            if (comp.isPassed) return true;
-        }
-
-        Debug.Log("[Validator] No closed loop detected.");
         return false;
     }
 
-    // ─── Hint Text ────────────────────────────────────────────────────
+    private int CountPoweredLEDs()
+    {
+        int count = 0;
+
+        foreach (LED led in FindObjectsOfType<LED>())
+        {
+            if (led != null && led.isPowered)
+                count++;
+        }
+
+        return count;
+    }
+
+    private void UpdateQuestObjective()
+    {
+        if (QuestController.Instance == null)
+            return;
+
+        string objectiveID = requiredCircuitType switch
+        {
+            CircuitQuestType.SimpleLoop => "LightLED",
+            CircuitQuestType.SwitchLoop => "SwitchLED",
+            CircuitQuestType.ResistorLoop => "ResistorLED",
+            CircuitQuestType.SeriesCircuit => "SeriesLED",
+            CircuitQuestType.ParallelCircuit => "ParallelLED",
+            CircuitQuestType.MasterCircuit => "MasterLED",
+            _ => null
+        };
+
+        if (!string.IsNullOrEmpty(objectiveID))
+        {
+            QuestController.Instance.UpdateObjective(objectiveID, ObjectiveType.Custom);
+            GiveBadgeRewardsForObjective(objectiveID);
+        }
+    }
+
+    private void GiveBadgeRewardsForObjective(string objectiveID)
+    {
+        if (QuestController.Instance == null)
+            return;
+
+        foreach (QuestProgress questProgress in QuestController.Instance.activateQuest)
+        {
+            if (!QuestHasCompletedObjective(questProgress, objectiveID))
+                continue;
+
+            GiveBadgeRewards(questProgress.quest);
+        }
+    }
+
+    private bool QuestHasCompletedObjective(QuestProgress questProgress, string objectiveID)
+    {
+        if (questProgress == null || questProgress.objectives == null)
+            return false;
+
+        foreach (QuestObjective objective in questProgress.objectives)
+        {
+            if (objective == null || !objective.IsCompleted)
+                continue;
+
+            if (string.Equals(
+                objective.objectiveID,
+                objectiveID,
+                System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void GiveBadgeRewards(Quest quest)
+    {
+        if (quest == null || quest.questRewards == null)
+            return;
+
+        foreach (QuestReward reward in quest.questRewards)
+        {
+            if (reward == null || reward.type != RewardType.Badge)
+                continue;
+
+            GiveBadge(reward.rewardID);
+        }
+    }
+
+    private void GiveBadge(int badgeID)
+    {
+        if (badgeID == 0)
+            return;
+
+        if (RewardsController.Instance != null)
+        {
+            RewardsController.Instance.GiveBadgeReward(badgeID);
+            return;
+        }
+
+        if (BadgeController.Instance != null)
+            BadgeController.Instance.GiveBadge(badgeID);
+    }
 
     public string GetDefaultHint(CircuitQuestType type)
     {
         return type switch
         {
             CircuitQuestType.SimpleLoop =>
-                "Battery  →  Wire  →  LED  →  Wire  →  Battery",
+                "Connect a battery to an LED with wires.",
             CircuitQuestType.SwitchLoop =>
-                "Battery  →  Wire  →  Switch  →  Wire  →  LED  →  Wire  →  Battery",
+                "Connect a battery, switch, LED, and wires. Close the switch to light the LED.",
             CircuitQuestType.ResistorLoop =>
-                "Battery  →  Switch  →  Resistor  →  LED  →  Battery",
+                "Connect a battery, switch, resistor, LED, and wires. Close the switch to light the LED.",
             CircuitQuestType.SeriesCircuit =>
-                "Battery  →  Resistor  →  LED  →  LED  →  Battery  (series)",
+                "Connect a battery, resistor, and at least two LEDs so both LEDs light.",
             CircuitQuestType.ParallelCircuit =>
-                "Battery  →  [ LED | LED ]  →  Battery  (parallel — two separate branches)",
+                "Connect a battery and at least two LEDs so both LEDs light.",
             CircuitQuestType.MasterCircuit =>
-                "Battery  →  Switch  →  Resistor  →  LED + LED  →  Battery",
-            _ => "No active quest found. Return to the main scene."
+                "Connect a battery, switch, resistor, and at least two LEDs. Close the switch so both LEDs light.",
+            _ => "No active circuit quest found."
         };
     }
 
-    // ─── Public Accessors ─────────────────────────────────────────────
-
-    public string GetHintText() => hintText;
-
-    // ─── Debug ────────────────────────────────────────────────────────
-
-    [ContextMenu("Debug: Force Redetect Quest Type")]
-    private void Debug_RedetectQuestType()
+    public string GetHintText()
     {
-        if (QuestController.Instance != null)
-        {
-            requiredCircuitType = DetectQuestType();
-            hintText = GetDefaultHint(requiredCircuitType);
-            SimulatorHintUI.Instance?.UpdateHint(hintText);
-            Debug.Log($"[CircuitQuestValidator] Redetected: {requiredCircuitType}");
-        }
+        return hintText;
     }
 
-    [ContextMenu("Debug: Force Validate")]
+    // [ContextMenu("Debug: Force Redetect Quest Type")]
+    private void Debug_RedetectQuestType()
+    {
+        if (QuestController.Instance == null)
+            return;
+
+        requiredCircuitType = DetectQuestType();
+        if (requiredCircuitType == CircuitQuestType.None)
+            requiredCircuitType = CircuitQuestType.SimpleLoop;
+
+        hintText = GetDefaultHint(requiredCircuitType);
+        GetSimulatorHintUI()?.UpdateHint(hintText);
+    }
+
+    // [ContextMenu("Debug: Force Validate")]
     private void Debug_ForceValidate()
     {
         Validate();
+    }
+
+    private SimulatorHintUI GetSimulatorHintUI()
+    {
+        if (SimulatorHintUI.Instance != null)
+            return SimulatorHintUI.Instance;
+
+        SimulatorHintUI[] uiObjects = Resources.FindObjectsOfTypeAll<SimulatorHintUI>();
+        foreach (SimulatorHintUI ui in uiObjects)
+        {
+            if (ui != null && ui.gameObject.scene.IsValid())
+                return ui;
+        }
+
+        return null;
     }
 }

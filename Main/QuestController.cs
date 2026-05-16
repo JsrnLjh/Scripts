@@ -39,7 +39,7 @@ public class QuestController : MonoBehaviour
         CheckInventoryForQuests();
         RefreshQuestUI();
 
-        Debug.Log($"[QuestController] Quest accepted: {quest.questName}");
+        // Debug.Log($"[QuestController] Quest accepted: {quest.questName}");
     }
 
     public bool IsQuestActive(string questID) =>
@@ -86,7 +86,7 @@ public class QuestController : MonoBehaviour
             handinQuestIDs.Add(questID);
             activateQuest.Remove(quest);
             RefreshQuestUI();
-            Debug.Log($"[QuestController] Quest handed in: {questID}");
+            // Debug.Log($"[QuestController] Quest handed in: {questID}");
         }
     }
 
@@ -151,8 +151,8 @@ public class QuestController : MonoBehaviour
                     objective.currentAmount = objective.requiredAmount;
 
                 updated = true;
-                Debug.Log($"[QuestController] Objective updated: {objectiveID} " +
-                          $"({objective.currentAmount}/{objective.requiredAmount})");
+                // Debug.Log($"[QuestController] Objective updated: {objectiveID} " +
+                //           $"({objective.currentAmount}/{objective.requiredAmount})");
             }
         }
 

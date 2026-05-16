@@ -29,13 +29,13 @@ public class SceneTransitionManager : MonoBehaviour
     // ─── Called by NPC_Circuit after quest accepted ───────────────────
     public void LoadSimulator()
     {
-        Debug.Log("[SceneTransitionManager] LoadSimulator called!");
+        // Debug.Log("[SceneTransitionManager] LoadSimulator called!");
         StartCoroutine(LoadScene(simulatorSceneName));
     }
 
     private IEnumerator LoadScene(string sceneName)
     {
-        Debug.Log($"[SceneTransitionManager] Loading scene: {sceneName}");
+        // Debug.Log($"[SceneTransitionManager] Loading scene: {sceneName}");
         yield return new WaitForSecondsRealtime(transitionDelay);
         Time.timeScale = 1f;
         SceneManager.LoadScene(sceneName);

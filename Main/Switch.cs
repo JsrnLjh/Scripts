@@ -13,45 +13,36 @@ public class Switch : CircuitComponent
     [Header("Drag Guard")]
     [SerializeField] private float dragThreshold = 8f;
     private Vector2 mouseDownScreenPos;
-    private bool wasDragged = false;
+    private bool wasDragged;
 
     private void Awake()
     {
-        type = ComponentType.Control;
         sr = GetComponentInChildren<SpriteRenderer>();
         UpdateVisuals();
-        Debug.Log($"[Switch] {name} Awake: isClosed = {isClosed}");
     }
 
-    public override bool CanPassCurrent()
+    public override bool CanPassPower()
     {
-        Debug.Log($"[Switch] {name} CanPassCurrent = {isClosed}");
         return isClosed;
     }
 
     public void Toggle()
     {
-        isClosed = !isClosed;
-        UpdateVisuals();
-        Debug.Log($"[Switch] {name} toggled → isClosed = {isClosed}");
-
-        if (CircuitManager.Instance != null)
-            CircuitManager.Instance.EvaluateCircuit();
+        SetState(!isClosed);
     }
 
-    // Called externally (e.g. from a UI button for mobile)
     public void SetState(bool closed)
     {
         isClosed = closed;
         UpdateVisuals();
-
-        if (CircuitManager.Instance != null)
-            CircuitManager.Instance.EvaluateCircuit();
+        CircuitManager.Instance?.EvaluateCircuit();
     }
 
     private void UpdateVisuals()
     {
-        if (sr == null) return;
+        if (sr == null)
+            return;
+
         sr.sprite = isClosed ? closedSprite : openSprite;
     }
 

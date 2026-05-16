@@ -81,9 +81,10 @@ public class InventoryController : MonoBehaviour
             if (slot != null && slot.currentItem != null)
             {
                 Item slotItem = slot.currentItem.GetComponent<Item>();
-                if(slotItem != null && slotItem.ID == itemToAdd.ID)
+                if(slotItem != null &&
+                slotItem.ID == itemToAdd.ID &&
+                slotItem.stackable)
                 {
-                    //Same item stacks
                     slotItem.AddToStack();
                     RebuildItemCounts();
                     return true;
@@ -104,7 +105,7 @@ public class InventoryController : MonoBehaviour
                 return true; // Item added successfully
             }
         }
-        Debug.Log("Inventory Full");
+        // Debug.Log("Inventory Full");
         return false; // Inventory full
     }
 

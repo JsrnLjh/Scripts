@@ -1,4 +1,3 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -22,16 +21,14 @@ public class BuildManager : MonoBehaviour
     private GameObject selectedPrefab;
     private SelectableComponent selectedPlacedComponent;
 
-    private List<GameObject> spawnedObjects = new List<GameObject>();
+    private readonly List<GameObject> spawnedObjects = new List<GameObject>();
 
     private void Awake()
     {
         Instance = this;
 
         if (mainCamera == null)
-        {
             mainCamera = Camera.main;
-        }
     }
 
     private void Update()
@@ -85,16 +82,12 @@ public class BuildManager : MonoBehaviour
     public void SelectPlacedComponent(SelectableComponent component)
     {
         if (selectedPlacedComponent != null)
-        {
             selectedPlacedComponent.SetSelected(false);
-        }
 
         selectedPlacedComponent = component;
 
         if (selectedPlacedComponent != null)
-        {
-            selectedPlacedComponent.SetSelected(true);        
-        }
+            selectedPlacedComponent.SetSelected(true);
     }
 
     public void DeselectPlacedComponent()
@@ -108,12 +101,11 @@ public class BuildManager : MonoBehaviour
 
     public void RotateSelected()
     {
+        if (selectedPlacedComponent == null) return;
+
         selectedPlacedComponent.transform.Rotate(0f, 0f, 90f);
 
-        if (CircuitManager.Instance != null)
-        {
-            CircuitManager.Instance.EvaluateCircuit();
-        }
+        CircuitManager.Instance?.EvaluateCircuit();
     }
 
     public void ResetAllPlacedComponents()
@@ -121,19 +113,14 @@ public class BuildManager : MonoBehaviour
         foreach (GameObject obj in spawnedObjects)
         {
             if (obj != null)
-            {
                 Destroy(obj);
-            }
         }
 
         spawnedObjects.Clear();
         selectedPrefab = null;
         DeselectPlacedComponent();
 
-        if (CircuitManager.Instance != null)
-        {
-            CircuitManager.Instance.EvaluateCircuit();
-        }
+        CircuitManager.Instance?.EvaluateCircuit();
     }
 
     private bool IsPointerInsideSimulatorPanel()
@@ -153,43 +140,17 @@ public class BuildManager : MonoBehaviour
         Vector3 worldPos = mainCamera.ScreenToWorldPoint(mouseScreenPos);
         worldPos.z = 0f;
 
-        if (CircuitGrid.Instance != null)
-        {
-            worldPos = CircuitGrid.Instance.SnapToGrid(worldPos);
-        }
+        GameObject spawned = Instantiate(
+            selectedPrefab,
+            worldPos,
+            Quaternion.identity,
+            spawnParent
+        );
 
-        Vector3 spawnPos = GetSnappedPositionWithOffset(selectedPrefab, worldPos);
-        GameObject spawned = Instantiate(selectedPrefab, spawnPos, Quaternion.identity);
         spawnedObjects.Add(spawned);
-
 
         selectedPrefab = null;
 
-        if (CircuitManager.Instance != null)
-        {
-            CircuitManager.Instance.EvaluateCircuit();
-        }
-    }
-
-    Vector3 GetSnappedPositionWithOffset(GameObject prefab, Vector3 mouseWorldPos)
-    {
-        float gridSize = 1f;
-
-        // Snap mouse to grid
-        float snappedX = Mathf.Round(mouseWorldPos.x / gridSize) * gridSize;
-        float snappedY = Mathf.Round(mouseWorldPos.y / gridSize) * gridSize;
-
-        Vector3 snappedPos = new Vector3(snappedX, snappedY, 0);
-
-        // Find first terminal of prefab
-        Terminal terminal = prefab.GetComponentInChildren<Terminal>();
-
-        if (terminal != null)
-        {
-            Vector3 terminalOffset = terminal.transform.localPosition;
-            return snappedPos - terminalOffset;
-        }
-
-        return snappedPos;
+        CircuitManager.Instance?.EvaluateCircuit();
     }
 }

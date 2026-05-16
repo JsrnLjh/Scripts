@@ -19,7 +19,7 @@ public class HotbarController : MonoBehaviour
             Instance = this;
         else
         {
-            Debug.LogError("Multiple HotbarController instances detected! Destroying the extra one.");
+            // Debug.LogError("Multiple HotbarController instances detected! Destroying the extra one.");
             Destroy(gameObject);
             return;
         }

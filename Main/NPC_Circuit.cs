@@ -226,9 +226,9 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
         if (givesQuest)
         {
-            Debug.Log($"[NPC_Circuit] ChooseOption — givesQuest=true, nextIndex={nextIndex}");
-            Debug.Log($"[NPC_Circuit] gameObject.activeInHierarchy={gameObject.activeInHierarchy}");
-            Debug.Log($"[NPC_Circuit] enabled={enabled}");
+            // Debug.Log($"[NPC_Circuit] ChooseOption — givesQuest=true, nextIndex={nextIndex}");
+            // Debug.Log($"[NPC_Circuit] gameObject.activeInHierarchy={gameObject.activeInHierarchy}");
+            // Debug.Log($"[NPC_Circuit] enabled={enabled}");
 
             if (!gameObject.activeInHierarchy || !enabled)
             {
@@ -254,7 +254,7 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
     private IEnumerator DisplayThenLoadSimulator(int lineIndex)
     {
-        Debug.Log($"[NPC_Circuit] DisplayThenLoadSimulator started — lineIndex: {lineIndex}");
+        // Debug.Log($"[NPC_Circuit] DisplayThenLoadSimulator started — lineIndex: {lineIndex}");
 
         // ← Guard against out of bounds
         if (lineIndex >= dialogueData.dialogueLines.Length)
@@ -277,7 +277,7 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         dialogueIndex = lineIndex;
 
         string fullText = dialogueData.dialogueLines[lineIndex];
-        Debug.Log($"[NPC_Circuit] Typing line: '{fullText}'");
+        // Debug.Log($"[NPC_Circuit] Typing line: '{fullText}'");
 
         dialogueUI.SetDialogueTextImmediate(fullText);
 
@@ -290,7 +290,7 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         isTyping = false;
         yield return new WaitForSecondsRealtime(1.5f);
 
-        Debug.Log("[NPC_Circuit] Closing dialogue and loading simulator...");
+        // Debug.Log("[NPC_Circuit] Closing dialogue and loading simulator...");
 
         isDialogueActive = false;
         dialogueUI.SetDialogueText("");
@@ -298,7 +298,7 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         PauseController.SetPause(false);
         simulatorLoadCoroutine = null;
 
-        Debug.Log($"[NPC_Circuit] SceneTransitionManager = {SceneTransitionManager.Instance}");
+        // Debug.Log($"[NPC_Circuit] SceneTransitionManager = {SceneTransitionManager.Instance}");
 
         if (SceneTransitionManager.Instance == null)
         {

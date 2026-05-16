@@ -74,7 +74,7 @@ public class NPC : MonoBehaviour, IInteractable
         string questID = dialogueData.quest.questID;
 
         bool completed = QuestController.Instance.IsQuestCompleted(questID);
-        Debug.Log($"Quest {questID} Completion Status: {completed}");
+        // Debug.Log($"Quest {questID} Completion Status: {completed}");
 
         if(QuestController.Instance.IsQuestCompleted(questID) || QuestController.Instance.IsQuestHandedIn(questID))
         {
