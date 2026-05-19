@@ -1,6 +1,5 @@
 using System.Collections;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 public class NPC_Circuit : MonoBehaviour, IInteractable
 {
@@ -15,10 +14,16 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
     [Tooltip("Message shown when player doesn't have the required badge.")]
     [TextArea] public string lockedMessage = "You need to complete the previous quest first.";
 
+    [Header("Quest Transition")]
+    [SerializeField] private bool loadSimulatorAfterAcceptingQuest = true;
+    [SerializeField] private bool loadSimulatorFromInProgressDialogue;
+    [SerializeField] private float questAcceptedLoadDelay = 1.5f;
+
     private DialogueController dialogueUI;
     private int dialogueIndex;
     private bool isTyping;
     private bool isDialogueActive;
+    private bool closeDialogueAfterCurrentLine;
 
     private Coroutine currentTypingCoroutine;
     private Coroutine simulatorLoadCoroutine;
@@ -41,6 +46,7 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
     public void Interact()
     {
         if (dialogueData == null) return;
+        if (!EnsureDialogueUI()) return;
         if (PauseController.IsGamePaused && !isDialogueActive) return;
 
         if (isDialogueActive)
@@ -50,7 +56,8 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         }
 
         // Badge gate check
-        if (requiredBadgeID != 0 && !BadgeController.Instance.HasBadge(requiredBadgeID))
+        BadgeController badgeController = BadgeController.Instance;
+        if (requiredBadgeID != 0 && (badgeController == null || !badgeController.HasBadge(requiredBadgeID)))
         {
             ShowLockedMessage();
             return;
@@ -63,6 +70,8 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
     private void ShowLockedMessage()
     {
+        if (!EnsureDialogueUI()) return;
+
         isDialogueActive = true;
 
         dialogueUI.SetNPCInfo(dialogueData.npcName, dialogueData.npcPortrait);
@@ -96,6 +105,9 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
     private void StartDialogue()
     {
+        if (!EnsureDialogueUI()) return;
+
+        closeDialogueAfterCurrentLine = false;
         SyncQuestState();
 
         if (questState == QuestState.NotStarted)
@@ -110,6 +122,12 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         dialogueUI.SetNPCInfo(dialogueData.npcName, dialogueData.npcPortrait);
         dialogueUI.ShowDialogueUI(true);
         PauseController.SetPause(true);
+
+        if (questState == QuestState.InProgress && loadSimulatorFromInProgressDialogue)
+        {
+            simulatorLoadCoroutine = StartCoroutine(DisplayThenLoadSimulator(dialogueIndex, true));
+            return;
+        }
 
         DisplayCurrentLines();
     }
@@ -149,6 +167,10 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
             dialogueUI.dialogueText.maxVisibleCharacters =
                 dialogueData.dialogueLines[dialogueIndex].Length;
             isTyping = false;
+
+            if (closeDialogueAfterCurrentLine)
+                currentTypingCoroutine = StartCoroutine(AutoCloseQuestAcceptedDialogue());
+
             return;
         }
 
@@ -218,41 +240,20 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
     {
         if (givesQuest)
         {
-            QuestController.Instance.AcceptQuest(dialogueData.quest);
+            if (!GiveQuestBeforeSimulatorLoad())
+                return;
+
             questState = QuestState.InProgress;
         }
 
         dialogueUI.ClearChoices();
-
-        if (givesQuest)
-        {
-            // Debug.Log($"[NPC_Circuit] ChooseOption — givesQuest=true, nextIndex={nextIndex}");
-            // Debug.Log($"[NPC_Circuit] gameObject.activeInHierarchy={gameObject.activeInHierarchy}");
-            // Debug.Log($"[NPC_Circuit] enabled={enabled}");
-
-            if (!gameObject.activeInHierarchy || !enabled)
-            {
-                Debug.LogError("[NPC_Circuit] Cannot start coroutine — " +
-                            "GameObject is inactive or component is disabled!");
-
-                // Force load directly without coroutine
-                PauseController.SetPause(false);
-                dialogueUI.ShowDialogueUI(false);
-                isDialogueActive = false;
-                SceneTransitionManager.Instance?.LoadSimulator();
-                return;
-            }
-
-            simulatorLoadCoroutine = StartCoroutine(DisplayThenLoadSimulator(nextIndex));
-            return;
-        }
-
+        dialogueIndex = nextIndex;
+        closeDialogueAfterCurrentLine = givesQuest;
         DisplayCurrentLines();
     }
-
     // ─── Simulator Load ───────────────────────────────────────────────
 
-    private IEnumerator DisplayThenLoadSimulator(int lineIndex)
+    private IEnumerator DisplayThenLoadSimulator(int lineIndex, bool forceLoad = false)
     {
         // Debug.Log($"[NPC_Circuit] DisplayThenLoadSimulator started — lineIndex: {lineIndex}");
 
@@ -262,14 +263,11 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
             Debug.LogError($"[NPC_Circuit] lineIndex {lineIndex} is out of bounds! " +
                         $"Dialogue has {dialogueData.dialogueLines.Length} lines.");
 
-            // Skip typing and just load the simulator directly
-            yield return new WaitForSeconds(0.5f);
-            isDialogueActive = false;
-            dialogueUI.SetDialogueText("");
-            dialogueUI.ShowDialogueUI(false);
-            PauseController.SetPause(false);
+            // Skip typing and load the simulator only after the quest is already active.
+            yield return new WaitForSecondsRealtime(0.5f);
+            CloseDialogueBeforeSimulatorLoad();
             simulatorLoadCoroutine = null;
-            SceneTransitionManager.Instance.LoadSimulator();
+            LoadSimulatorIfReady(forceLoad);
             yield break;
         }
 
@@ -288,31 +286,24 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
         }
 
         isTyping = false;
-        yield return new WaitForSecondsRealtime(1.5f);
+        yield return new WaitForSecondsRealtime(questAcceptedLoadDelay);
 
         // Debug.Log("[NPC_Circuit] Closing dialogue and loading simulator...");
 
-        isDialogueActive = false;
-        dialogueUI.SetDialogueText("");
-        dialogueUI.ShowDialogueUI(false);
-        PauseController.SetPause(false);
+        CloseDialogueBeforeSimulatorLoad();
         simulatorLoadCoroutine = null;
 
         // Debug.Log($"[NPC_Circuit] SceneTransitionManager = {SceneTransitionManager.Instance}");
 
-        if (SceneTransitionManager.Instance == null)
-        {
-            Debug.LogError("[NPC_Circuit] SceneTransitionManager is NULL!");
-            yield break;
-        }
-
-        SceneTransitionManager.Instance.LoadSimulator();
+        LoadSimulatorIfReady(forceLoad);
     }
 
     // ─── Typing ───────────────────────────────────────────────────────
 
     private void DisplayCurrentLines()
     {
+        if (!EnsureDialogueUI()) return;
+
         if (currentTypingCoroutine != null)
             StopCoroutine(currentTypingCoroutine);
 
@@ -334,6 +325,12 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
         isTyping = false;
 
+        if (closeDialogueAfterCurrentLine)
+        {
+            yield return AutoCloseQuestAcceptedDialogue();
+            yield break;
+        }
+
         // Auto-progress if enabled for this line
         if (dialogueData.autoProgressLines.Length > dialogueIndex &&
             dialogueData.autoProgressLines[dialogueIndex])
@@ -345,11 +342,34 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
     // ─── Quest Completion ─────────────────────────────────────────────
 
+    private IEnumerator AutoCloseQuestAcceptedDialogue()
+    {
+        closeDialogueAfterCurrentLine = false;
+        yield return new WaitForSecondsRealtime(questAcceptedLoadDelay);
+        currentTypingCoroutine = null;
+        CloseDialogueBeforeSimulatorLoad();
+
+        if (loadSimulatorAfterAcceptingQuest)
+            LoadSimulatorIfReady(true);
+    }
+
     private void HandleQuestCompletion(Quest quest)
     {
         if (!ValidateCircuitForQuest(quest))
         {
             ShowCircuitIncompleteMessage();
+            return;
+        }
+
+        if (RewardsController.Instance == null)
+        {
+            Debug.LogError("[NPC_Circuit] Cannot give quest reward because RewardsController is missing.");
+            return;
+        }
+
+        if (QuestController.Instance == null)
+        {
+            Debug.LogError("[NPC_Circuit] Cannot hand in quest because QuestController is missing.");
             return;
         }
 
@@ -370,6 +390,8 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
 
     private void ShowCircuitIncompleteMessage()
     {
+        if (!EnsureDialogueUI()) return;
+
         if (currentTypingCoroutine != null)
             StopCoroutine(currentTypingCoroutine);
 
@@ -378,5 +400,73 @@ public class NPC_Circuit : MonoBehaviour, IInteractable
             "Head back to the simulator and try again!");
 
         StartCoroutine(AutoCloseLockedMessage());
+    }
+
+    private bool EnsureDialogueUI()
+    {
+        dialogueUI = DialogueController.Instance;
+
+        if (dialogueUI == null || !dialogueUI.IsReady())
+        {
+            Debug.LogWarning("[NPC_Circuit] DialogueController or dialogue UI references are missing.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private bool GiveQuestBeforeSimulatorLoad()
+    {
+        if (QuestController.Instance == null)
+        {
+            Debug.LogError("[NPC_Circuit] Cannot give quest because QuestController is missing.");
+            return false;
+        }
+
+        if (dialogueData.quest == null)
+        {
+            Debug.LogError("[NPC_Circuit] Cannot give quest because dialogueData.quest is missing.");
+            return false;
+        }
+
+        bool accepted = QuestController.Instance.AcceptQuest(dialogueData.quest);
+        if (!accepted)
+            return false;
+
+        QuestController.Instance.RefreshUI();
+
+        SaveController saveController = FindObjectOfType<SaveController>();
+        saveController?.SaveGame();
+
+        return true;
+    }
+
+    private void CloseDialogueBeforeSimulatorLoad()
+    {
+        isDialogueActive = false;
+        isTyping = false;
+
+        if (dialogueUI != null)
+        {
+            dialogueUI.ClearChoices();
+            dialogueUI.SetDialogueText("");
+            dialogueUI.ShowDialogueUI(false);
+        }
+
+        PauseController.SetPause(false);
+    }
+
+    private void LoadSimulatorIfReady(bool forceLoad = false)
+    {
+        if (!forceLoad)
+            return;
+
+        if (SceneTransitionManager.Instance == null)
+        {
+            Debug.LogError("[NPC_Circuit] SceneTransitionManager is NULL!");
+            return;
+        }
+
+        SceneTransitionManager.Instance.LoadSimulator();
     }
 }

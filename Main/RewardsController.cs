@@ -44,13 +44,15 @@ public class RewardsController : MonoBehaviour
 
     public void GiveBadgeReward(int badgeID)
     {
-        if (BadgeController.Instance == null)
+        BadgeController badgeController = BadgeController.Instance;
+
+        if (badgeController == null)
         {
-            // Debug.LogWarning("[RewardsController] BadgeController not found.");
+            Debug.LogWarning("[RewardsController] BadgeController not found. Badge reward could not be given.");
             return;
         }
 
-        BadgeController.Instance.GiveBadge(badgeID);
+        badgeController.GiveBadge(badgeID);
         // Debug.Log($"[RewardsController] Badge {badgeID} given to player.");
     }
 

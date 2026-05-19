@@ -53,6 +53,9 @@ public class CircuitQuestValidator : MonoBehaviour
 
     private CircuitQuestType DetectQuestType()
     {
+        if (QuestController.Instance == null)
+            return CircuitQuestType.None;
+
         string[] objectiveIDs =
         {
             "LightLED",
@@ -98,6 +101,10 @@ public class CircuitQuestValidator : MonoBehaviour
 
     public void Validate()
     {
+        CircuitQuestType detectedQuestType = DetectQuestType();
+        if (detectedQuestType != CircuitQuestType.None)
+            requiredCircuitType = detectedQuestType;
+
         isCircuitValid = requiredCircuitType switch
         {
             CircuitQuestType.SimpleLoop => ValidateSimpleLoop(),
@@ -112,10 +119,11 @@ public class CircuitQuestValidator : MonoBehaviour
 
         Debug.Log($"[CircuitQuestValidator] {requiredCircuitType} valid = {isCircuitValid}");
 
-        GetSimulatorHintUI()?.UpdateStatus(isCircuitValid);
-
+        bool questObjectiveCompleted = true;
         if (isCircuitValid)
-            UpdateQuestObjective();
+            questObjectiveCompleted = UpdateQuestObjective();
+
+        GetSimulatorHintUI()?.UpdateStatus(isCircuitValid && questObjectiveCompleted);
     }
 
     private bool ValidateSimpleLoop()
@@ -196,12 +204,42 @@ public class CircuitQuestValidator : MonoBehaviour
         return count;
     }
 
-    private void UpdateQuestObjective()
+    private bool UpdateQuestObjective()
     {
         if (QuestController.Instance == null)
-            return;
+        {
+            Debug.LogWarning("[CircuitQuestValidator] Cannot complete quest because QuestController is missing. Start from the main scene/NPC quest flow.");
+            return false;
+        }
 
-        string objectiveID = requiredCircuitType switch
+        string objectiveID = GetObjectiveID(requiredCircuitType);
+
+        if (string.IsNullOrEmpty(objectiveID))
+        {
+            Debug.LogWarning($"[CircuitQuestValidator] Cannot complete quest because no objective ID maps to circuit type '{requiredCircuitType}'.");
+            return false;
+        }
+
+        if (IsQuestObjectiveAlreadyCompleted(objectiveID))
+            return true;
+
+        bool objectiveUpdated = QuestController.Instance.TryCompleteObjective(
+            objectiveID,
+            ObjectiveType.Custom,
+            out Quest completedQuest);
+
+        if (objectiveUpdated)
+        {
+            SaveController saveController = FindObjectOfType<SaveController>();
+            saveController?.SaveGame();
+        }
+
+        return objectiveUpdated;
+    }
+
+    private string GetObjectiveID(CircuitQuestType questType)
+    {
+        return questType switch
         {
             CircuitQuestType.SimpleLoop => "LightLED",
             CircuitQuestType.SwitchLoop => "SwitchLED",
@@ -211,26 +249,17 @@ public class CircuitQuestValidator : MonoBehaviour
             CircuitQuestType.MasterCircuit => "MasterLED",
             _ => null
         };
-
-        if (!string.IsNullOrEmpty(objectiveID))
-        {
-            QuestController.Instance.UpdateObjective(objectiveID, ObjectiveType.Custom);
-            GiveBadgeRewardsForObjective(objectiveID);
-        }
     }
 
-    private void GiveBadgeRewardsForObjective(string objectiveID)
+    private bool IsQuestObjectiveAlreadyCompleted(string objectiveID)
     {
-        if (QuestController.Instance == null)
-            return;
-
         foreach (QuestProgress questProgress in QuestController.Instance.activateQuest)
         {
-            if (!QuestHasCompletedObjective(questProgress, objectiveID))
-                continue;
-
-            GiveBadgeRewards(questProgress.quest);
+            if (QuestHasCompletedObjective(questProgress, objectiveID))
+                return true;
         }
+
+        return false;
     }
 
     private bool QuestHasCompletedObjective(QuestProgress questProgress, string objectiveID)
@@ -253,35 +282,6 @@ public class CircuitQuestValidator : MonoBehaviour
         }
 
         return false;
-    }
-
-    private void GiveBadgeRewards(Quest quest)
-    {
-        if (quest == null || quest.questRewards == null)
-            return;
-
-        foreach (QuestReward reward in quest.questRewards)
-        {
-            if (reward == null || reward.type != RewardType.Badge)
-                continue;
-
-            GiveBadge(reward.rewardID);
-        }
-    }
-
-    private void GiveBadge(int badgeID)
-    {
-        if (badgeID == 0)
-            return;
-
-        if (RewardsController.Instance != null)
-        {
-            RewardsController.Instance.GiveBadgeReward(badgeID);
-            return;
-        }
-
-        if (BadgeController.Instance != null)
-            BadgeController.Instance.GiveBadge(badgeID);
     }
 
     public string GetDefaultHint(CircuitQuestType type)

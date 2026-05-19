@@ -1,10 +1,23 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 public class BadgeController : MonoBehaviour
 {
-    public static BadgeController Instance { get; private set; }
+    private static BadgeController instance;
+
+    public static BadgeController Instance
+    {
+        get
+        {
+            if (instance == null)
+                instance = FindAnyObjectByType<BadgeController>();
+
+            return instance;
+        }
+        private set => instance = value;
+    }
 
     // =========================================================
     // BADGE STORAGE
@@ -57,15 +70,30 @@ public class BadgeController : MonoBehaviour
 
     private void Awake()
     {
-        if (Instance == null)
+        if (instance == null || instance == this)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+            SceneManager.sceneLoaded += OnSceneLoaded;
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    private void OnDestroy()
+    {
+        if (instance == this)
+        {
+            SceneManager.sceneLoaded -= OnSceneLoaded;
+            instance = null;
+        }
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        RestoreEarnedBadgesToInventory();
     }
 
     // =========================================================
@@ -78,6 +106,7 @@ public class BadgeController : MonoBehaviour
         if (earnedBadges.Contains(badgeID))
         {
             Debug.Log($"[BadgeController] Badge {badgeID} already earned.");
+            EnsureBadgeInInventory(badgeID);
             return;
         }
 
@@ -90,28 +119,7 @@ public class BadgeController : MonoBehaviour
         // ADD BADGE TO INVENTORY
         // =====================================================
 
-        GameObject badgePrefab = GetBadgePrefab(badgeID);
-
-        if (badgePrefab != null)
-        {
-            if (InventoryController.Instance != null)
-            {
-                bool added = InventoryController.Instance.AddItem(badgePrefab);
-
-                if (!added)
-                {
-                    Debug.LogWarning("[BadgeController] Inventory full. Badge could not be added.");
-                }
-            }
-            else
-            {
-                Debug.LogWarning("[BadgeController] InventoryController not found.");
-            }
-        }
-        else
-        {
-            Debug.LogWarning($"[BadgeController] No badge prefab assigned for badge ID {badgeID}");
-        }
+        EnsureBadgeInInventory(badgeID);
 
         // =====================================================
         // SHOW BADGE POPUP
@@ -222,6 +230,12 @@ public class BadgeController : MonoBehaviour
         return GetAllBadges();
     }
 
+    public void RestoreEarnedBadgesToInventory()
+    {
+        foreach (int id in earnedBadges)
+            EnsureBadgeInInventory(id);
+    }
+
     public void LoadSaveData(List<int> savedBadges)
     {
         if (savedBadges == null)
@@ -230,14 +244,44 @@ public class BadgeController : MonoBehaviour
             return;
         }
 
-        earnedBadges.Clear();
-
         foreach (int id in savedBadges)
         {
             earnedBadges.Add(id);
+            EnsureBadgeInInventory(id);
         }
 
         Debug.Log($"[BadgeController] Loaded {earnedBadges.Count} badge(s).");
+    }
+
+    private void EnsureBadgeInInventory(int badgeID)
+    {
+        if (InventoryController.Instance == null)
+        {
+            Debug.LogWarning("[BadgeController] InventoryController not found.");
+            return;
+        }
+
+        GameObject badgePrefab = GetBadgePrefab(badgeID);
+
+        if (badgePrefab == null)
+            badgePrefab = FindAnyObjectByType<ItemDictionary>()?.GetItemPrefab(badgeID);
+
+        if (badgePrefab == null)
+        {
+            Debug.LogWarning($"[BadgeController] No badge prefab assigned for badge ID {badgeID}");
+            return;
+        }
+
+        Item badgeItem = badgePrefab.GetComponent<Item>();
+        int inventoryItemID = badgeItem != null ? badgeItem.ID : badgeID;
+
+        if (InventoryController.Instance.HasItem(inventoryItemID))
+            return;
+
+        bool added = InventoryController.Instance.AddItem(badgePrefab);
+
+        if (!added)
+            Debug.LogWarning("[BadgeController] Inventory full. Badge could not be added.");
     }
 
     // =========================================================

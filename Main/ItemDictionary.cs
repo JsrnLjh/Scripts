@@ -11,10 +11,11 @@ public class ItemDictionary : MonoBehaviour
     {
         itemDictionary = new Dictionary<int, GameObject>();
 
-        //Auto Increment IDs
+        // Auto-assign IDs only for prefabs that do not already define one.
+        // Badge prefabs use fixed IDs (101-106) that match quest rewards.
         for(int i = 0; i < itemPrefabs.Count; i++)
         {
-            if(itemPrefabs[i] != null)
+            if(itemPrefabs[i] != null && itemPrefabs[i].ID <= 0)
             {
                 itemPrefabs[i].ID = i + 1;
             }

@@ -43,11 +43,7 @@ public class SimulatorHintUI : MonoBehaviour
         if (completionPanel != null)
             completionPanel.SetActive(false);
 
-        if (returnButton != null)
-        {
-            returnButton.gameObject.SetActive(false);
-            returnButton.onClick.AddListener(ReturnToMainScene);
-        }
+        EnsureReturnButtonListener(false);
     }
 
     private void AutoAssignCompletionUI()
@@ -162,9 +158,20 @@ public class SimulatorHintUI : MonoBehaviour
 
     private void Update()
     {
-        if (!completionShown && HasLitLED())
+        if (completionShown)
+            return;
+
+        if (CircuitQuestValidator.Instance != null)
         {
-            ShowCompletion();
+            if (HasLitLED())
+                CircuitQuestValidator.Instance.Validate();
+
+            return;
+        }
+
+        if (HasLitLED())
+        {
+            Debug.LogWarning("[SimulatorHintUI] LED is lit, but CircuitQuestValidator is missing. Quest completion was not applied.");
         }
     }
 
@@ -201,7 +208,78 @@ public class SimulatorHintUI : MonoBehaviour
         }
 
         SetTitle(activeQuest.quest.questName);
-        SetDescription(activeQuest.quest.description);
+        SetDescription(BuildQuestDescription(activeQuest));
+    }
+
+    private string BuildQuestDescription(QuestProgress activeQuest)
+    {
+        CircuitQuestType questType = GetCircuitQuestType(activeQuest);
+        string description = activeQuest.quest.description;
+        string requirements = GetComponentRequirements(questType);
+        string goal = GetCircuitGoal(questType);
+
+        if (string.IsNullOrWhiteSpace(requirements))
+            return description;
+
+        return $"{description}\nRequired components: {requirements}\nGoal: {goal}";
+    }
+
+    private CircuitQuestType GetCircuitQuestType(QuestProgress activeQuest)
+    {
+        if (activeQuest == null || activeQuest.objectives == null)
+            return CircuitQuestType.None;
+
+        foreach (QuestObjective objective in activeQuest.objectives)
+        {
+            if (objective == null || objective.IsCompleted)
+                continue;
+
+            switch (objective.objectiveID)
+            {
+                case "LightLED":
+                    return CircuitQuestType.SimpleLoop;
+                case "SwitchLED":
+                    return CircuitQuestType.SwitchLoop;
+                case "ResistorLED":
+                    return CircuitQuestType.ResistorLoop;
+                case "SeriesLED":
+                    return CircuitQuestType.SeriesCircuit;
+                case "ParallelLED":
+                    return CircuitQuestType.ParallelCircuit;
+                case "MasterLED":
+                    return CircuitQuestType.MasterCircuit;
+            }
+        }
+
+        return CircuitQuestType.None;
+    }
+
+    private string GetComponentRequirements(CircuitQuestType questType)
+    {
+        return questType switch
+        {
+            CircuitQuestType.SimpleLoop => "1 battery, 1 LED, and wires",
+            CircuitQuestType.SwitchLoop => "1 battery, 1 switch, 1 LED, and wires",
+            CircuitQuestType.ResistorLoop => "1 battery, 1 switch, 1 resistor, 1 LED, and wires",
+            CircuitQuestType.SeriesCircuit => "1 battery, 1 resistor, 2 LEDs, and wires",
+            CircuitQuestType.ParallelCircuit => "1 battery, 2 LEDs, and wires",
+            CircuitQuestType.MasterCircuit => "1 battery, 1 switch, 1 resistor, 2 LEDs, and wires",
+            _ => null
+        };
+    }
+
+    private string GetCircuitGoal(CircuitQuestType questType)
+    {
+        return questType switch
+        {
+            CircuitQuestType.SimpleLoop => "Make a closed circuit that lights the LED.",
+            CircuitQuestType.SwitchLoop => "Close the switch so the LED turns on.",
+            CircuitQuestType.ResistorLoop => "Use the resistor in the loop and light the LED.",
+            CircuitQuestType.SeriesCircuit => "Wire the two LEDs in series so both LEDs light.",
+            CircuitQuestType.ParallelCircuit => "Put the two LEDs on separate branches so both LEDs light.",
+            CircuitQuestType.MasterCircuit => "Use every component together and light both LEDs.",
+            _ => "Build the active quest circuit."
+        };
     }
 
     private QuestProgress GetActiveCircuitQuest()
@@ -273,6 +351,7 @@ public class SimulatorHintUI : MonoBehaviour
         {
             returnButton.gameObject.SetActive(true);
             returnButton.interactable = true;
+            EnsureReturnButtonListener(true);
         }
 
         Debug.Log(
@@ -305,6 +384,11 @@ public class SimulatorHintUI : MonoBehaviour
 
     public void ReturnToMainScene()
     {
+        if (CircuitQuestValidator.Instance != null)
+            CircuitQuestValidator.Instance.Validate();
+
+        QuestController.Instance?.RefreshUI();
+
         if (SceneTransitionManager.Instance == null)
         {
             GameObject sceneTransition = new GameObject("SceneTransitionManager");
@@ -312,6 +396,16 @@ public class SimulatorHintUI : MonoBehaviour
         }
 
         SceneTransitionManager.Instance.ReturnToMain();
+    }
+
+    private void EnsureReturnButtonListener(bool visible)
+    {
+        if (returnButton == null)
+            return;
+
+        returnButton.gameObject.SetActive(visible);
+        returnButton.onClick.RemoveListener(ReturnToMainScene);
+        returnButton.onClick.AddListener(ReturnToMainScene);
     }
 
     private void SetTitle(string title)

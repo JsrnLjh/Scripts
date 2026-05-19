@@ -27,7 +27,7 @@ public class NPC : MonoBehaviour, IInteractable
 
     public void Interact()
     {
-        if(dialogueData == null || (PauseController.IsGamePaused && !isDialogueActive))
+        if(dialogueData == null || !EnsureDialogueUI() || (PauseController.IsGamePaused && !isDialogueActive))
             return;  
 
         if(isDialogueActive)
@@ -42,6 +42,8 @@ public class NPC : MonoBehaviour, IInteractable
 
     void StartDialogue()
     {
+        if (!EnsureDialogueUI()) return;
+
         // Sync with the quest data
         SyncQuestState();
         // Set Dialogue
@@ -171,6 +173,8 @@ public class NPC : MonoBehaviour, IInteractable
 
     void DisplayCurrentLines()
     {
+        if (!EnsureDialogueUI()) return;
+
         StopAllCoroutines();
         StartCoroutine(TypeLine());
     }
@@ -203,5 +207,18 @@ public class NPC : MonoBehaviour, IInteractable
     {
         RewardsController.Instance.GiveQuestReward(quest); 
         QuestController.Instance.HandInQuest(quest.questID);
+    }
+
+    private bool EnsureDialogueUI()
+    {
+        dialogueUI = DialogueController.Instance;
+
+        if (dialogueUI == null || !dialogueUI.IsReady())
+        {
+            Debug.LogWarning("[NPC] DialogueController or dialogue UI references are missing.");
+            return false;
+        }
+
+        return true;
     }
 }

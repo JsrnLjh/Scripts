@@ -32,9 +32,13 @@ public class SaveController : MonoBehaviour
             return;
         }
 
+        GameObject player = GameObject.FindGameObjectWithTag("Player");
+
         SaveData saveData = new SaveData
         {
-            playerPosition = GameObject.FindGameObjectWithTag("Player").transform.position,
+            playerPosition = player != null
+                ? player.transform.position
+                : GetSavedPlayerPosition(),
             inventorySaveData = inventoryController.GetInventoryItems(),
             chestSaveData = GetChestsState(),
             questProgressData = QuestController.Instance.activateQuest,
@@ -43,8 +47,19 @@ public class SaveController : MonoBehaviour
         };
 
         File.WriteAllText(saveLocation, JsonUtility.ToJson(saveData));
-        
+
         // Debug.Log("[SaveController] Game saved.");
+    }
+
+    private Vector3 GetSavedPlayerPosition()
+    {
+        if (!File.Exists(saveLocation))
+            return Vector3.zero;
+
+        SaveData existingSave = JsonUtility.FromJson<SaveData>(
+            File.ReadAllText(saveLocation));
+
+        return existingSave != null ? existingSave.playerPosition : Vector3.zero;
     }
 
     private List<ChestSaveData> GetChestsState()
@@ -53,6 +68,9 @@ public class SaveController : MonoBehaviour
 
         foreach (Chest chest in chests)
         {
+            if (chest == null)
+                continue;
+
             chestStates.Add(new ChestSaveData
             {
                 chestID = chest.ChestID,
@@ -92,8 +110,7 @@ public class SaveController : MonoBehaviour
         if (QuestController.Instance != null)
         {
             QuestController.Instance.LoadQuestProgress(saveData.questProgressData);
-            QuestController.Instance.handinQuestIDs = saveData.handInQuestIDs
-                ?? new List<string>();
+            QuestController.Instance.LoadHandInQuestIDs(saveData.handInQuestIDs);
         }
         else
         {
@@ -104,6 +121,8 @@ public class SaveController : MonoBehaviour
         if (BadgeController.Instance != null)
         {
             BadgeController.Instance.LoadSaveData(saveData.earnedBadgeIDs);
+            inventoryController.RebuildItemCounts();
+            SaveGame();
         }
         else
         {
